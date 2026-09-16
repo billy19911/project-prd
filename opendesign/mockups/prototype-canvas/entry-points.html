@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>XynnPrototype — Dua Pintu Masuk Prototype (wireframe)</title>
+<link rel="stylesheet" href="../../design-systems/xynnprototype/colors_and_type.css" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--background);color:var(--foreground);
+    font-family:var(--font-sans);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;padding:28px 24px 72px
+  }
+  .mono{font-family:var(--font-mono)}
+  .kicker{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  h1.title{font-size:24px;font-weight:600;letter-spacing:-.02em;margin-top:6px}
+  .sub{color:var(--muted);font-size:13px;margin-top:6px;max-width:74ch}
+
+  .wrap{max-width:1400px;margin:0 auto}
+  .switchbar{
+    margin:20px 0 22px;display:flex;flex-wrap:wrap;gap:8px;padding:10px;
+    border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface);align-items:center
+  }
+  .switchbar .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding-left:4px;margin-right:4px}
+  .sw{
+    appearance:none;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--muted);
+    font:inherit;font-size:12px;font-weight:500;padding:6px 12px;border-radius:var(--radius-md);cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px
+  }
+  .sw:hover{color:var(--foreground)}
+  .sw[aria-pressed="true"]{background:color-mix(in srgb,var(--accent) 15%,transparent);border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)}
+  .sw .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .sw.seg{border-radius:0}
+  .sw.seg:first-of-type{border-top-left-radius:var(--radius-md);border-bottom-left-radius:var(--radius-md)}
+  .sw.seg:last-of-type{border-top-right-radius:var(--radius-md);border-bottom-right-radius:var(--radius-md)}
+  .divider{width:1px;height:22px;background:var(--border);margin:0 4px}
+
+  .stage{
+    border:1px solid var(--border);border-radius:var(--radius-card);
+    background-color:var(--background);padding:26px;overflow:auto;
+    background-image:radial-gradient(color-mix(in srgb,var(--border-strong) 55%,transparent) 1px,transparent 1px);
+    background-size:22px 22px
+  }
+
+  /* ============ generic app chrome reused from real product ============ */
+  .appwin{
+    max-width:1120px;margin:0 auto;border:1px solid var(--border-strong);border-radius:14px;
+    background:var(--background);overflow:hidden;display:flex;min-height:560px;
+    box-shadow:0 26px 60px -34px rgba(0,0,0,.85)
+  }
+  .sidebar{
+    flex:none;width:208px;border-right:1px solid var(--border);background:color-mix(in srgb,var(--surface) 40%,transparent);
+    display:flex;flex-direction:column
+  }
+  .sb-head{height:52px;display:flex;align-items:center;gap:9px;padding:0 16px;border-bottom:1px solid var(--border)}
+  .logo{width:22px;height:22px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600}
+  .sb-name{font-size:13px;font-weight:600}
+  .sb-nav{padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+  .sb-item{
+    position:relative;display:flex;align-items:center;gap:10px;padding:7px 11px;border-radius:7px;
+    font-size:12.5px;color:var(--muted)
+  }
+  .sb-item.on{color:var(--foreground)}
+  .sb-item.on::before{
+    content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);
+    width:2px;height:16px;border-radius:99px;background:var(--accent)
+  }
+  .ic{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:2}
+  .sb-foot{margin-top:auto;border-top:1px solid var(--border);padding:10px 12px;display:flex;align-items:center;gap:9px}
+  .avatar{width:24px;height:24px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted)}
+  .sb-foot .nm{font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge-plan{font-size:9px;padding:2px 6px;border-radius:5px;border:1px solid var(--border-strong);color:var(--muted)}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .crumb{padding:16px 22px 0;font-size:12px;color:var(--muted)}
+  .crumb b{color:var(--foreground);font-weight:500}
+  .head{padding:8px 22px 14px;display:flex;align-items:flex-start;gap:12px}
+  .head h2{font-size:18px;font-weight:600;letter-spacing:-.01em}
+  .head p{font-size:12px;color:var(--muted);margin-top:3px;max-width:60ch}
+  .head .sp{flex:1}
+
+  /* tabs — mirror of project/[id] tab row */
+  .tabrow{
+    margin:0 22px;display:flex;gap:4px;padding:4px;border:1px solid var(--border);
+    border-radius:10px;background:color-mix(in srgb,var(--surface) 60%,transparent);overflow-x:auto
+  }
+  .tab{
+    display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:7px;font-size:12px;
+    font-weight:500;color:var(--muted);white-space:nowrap;border:0;background:transparent;font-family:inherit;cursor:pointer
+  }
+  .tab:hover{color:var(--foreground)}
+  .tab.on{background:var(--surface-2);color:var(--foreground)}
+  .tab.lock{color:color-mix(in srgb,var(--muted) 40%,transparent)}
+  .tab .tick{color:var(--success)}
+  .tab .padlock{opacity:.85}
+
+  .panel{flex:1;padding:18px 22px 22px}
+  .card{border:1px solid var(--border);border-radius:14px;background:color-mix(in srgb,var(--surface) 70%,transparent)}
+
+  /* placeholder striped block */
+  .ph{
+    border:1px dashed var(--border-strong);border-radius:10px;
+    background-image:repeating-linear-gradient(135deg,transparent 0 7px,color-mix(in srgb,var(--border-strong) 40%,transparent) 7px 8px);
+    display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);
+    font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;padding:14px
+  }
+  .ph.tall{min-height:172px}.ph.med{min-height:96px}.ph.short{min-height:52px}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:10px;
+    font:inherit;font-size:12.5px;font-weight:500;padding:9px 15px;border:0;cursor:pointer
+  }
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.secondary{background:var(--surface-2);color:var(--foreground);border:1px solid var(--border-strong)}
+  .btn.ghost{background:transparent;color:var(--muted)}
+  .btn.sm{padding:7px 12px;font-size:11.5px}
+
+  .empty{
+    display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:44px 20px
+  }
+  .empty h3{font-size:14px;font-weight:600}
+  .empty p{font-size:12px;color:var(--muted);max-width:46ch}
+  .iconbox{
+    width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);
+    border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)
+  }
+  .iconbox.grey{background:var(--surface-2);color:var(--muted);border-color:var(--border)}
+
+  /* stepper (wizard output) */
+  .stepper{display:flex;gap:4px;padding:5px;border:1px solid var(--border);border-radius:11px;background:color-mix(in srgb,var(--surface) 60%,transparent);align-self:flex-start}
+  .step{display:flex;align-items:center;gap:7px;padding:6px 11px;border-radius:8px;font-size:11.5px;font-weight:500;color:var(--muted)}
+  .step.on{background:var(--surface-2);color:var(--foreground)}
+  .step.done{color:var(--muted)}
+  .step.lock{color:color-mix(in srgb,var(--muted) 40%,transparent)}
+  .num{
+    width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:9px;background:var(--surface-2);color:var(--muted)
+  }
+  .step.on .num{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)}
+  .step.done .num{background:color-mix(in srgb,var(--success) 20%,transparent);color:var(--success)}
+
+  /* chat split view */
+  .split{display:flex;min-height:560px}
+  .chatcol{
+    flex:none;width:340px;border-right:1px solid var(--border);display:flex;flex-direction:column;
+    background:color-mix(in srgb,var(--surface) 40%,transparent)
+  }
+  .chat-head{height:48px;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--border);font-size:12.5px;font-weight:600}
+  .chat-log{flex:1;padding:14px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+  .bub{max-width:88%;padding:9px 12px;border-radius:11px;font-size:12px;line-height:1.55}
+  .bub.me{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+  .bub.ai{align-self:flex-start;background:var(--surface-2);border:1px solid var(--border);border-bottom-left-radius:4px}
+  .bub.ai .who{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);margin-bottom:5px}
+  .tagchip{font-family:var(--font-mono);font-size:9.5px;padding:1.5px 6px;border-radius:5px;border:1px solid var(--border-strong);color:var(--muted)}
+  .chat-input{border-top:1px solid var(--border);padding:12px;display:flex;gap:8px;align-items:flex-end}
+  .ta{
+    flex:1;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface-2);
+    padding:9px 11px;font:inherit;font-size:12px;color:var(--muted);min-height:38px;resize:none
+  }
+  .canvascol{flex:1;min-width:0;display:flex;flex-direction:column}
+  .canvas-bar{height:44px;display:flex;align-items:center;gap:9px;padding:0 14px;border-bottom:1px solid var(--border)}
+  .canvas-bar h4{font-size:12px;font-weight:600}
+  .seg{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)}
+  .seg button{appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-size:10.5px;padding:4px 9px;cursor:pointer}
+  .seg button.on{background:var(--surface-2);color:var(--foreground)}
+  .sp{flex:1}
+  .pill{font-size:9.5px;padding:3px 7px;border-radius:6px;border:1px solid var(--border-strong);color:var(--muted)}
+  .pill.acc{border-color:color-mix(in srgb,var(--accent) 40%,transparent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+  .canvas-body{flex:1;padding:16px;overflow:auto}
+  .mini-scr{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto}
+  .mthumb{width:88px;flex:none;border:1px solid var(--border);border-radius:8px;background:var(--background);overflow:hidden}
+  .mthumb.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .mthumb .t{height:44px;position:relative;background:#0b0f19}
+  .mthumb .c{font-size:9px;padding:4px 6px;color:var(--muted);border-top:1px solid var(--border)}
+  .mthumb.on .c{color:var(--foreground)}
+  .wl{position:absolute;background:var(--border-strong);border-radius:2px}
+  .wa{position:absolute;background:var(--accent);border-radius:2px}
+
+  .notes{margin-top:26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+  .note{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:12px 14px}
+  .note h5{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:6px}
+  .note p{font-size:12px;color:var(--muted);line-height:1.6}
+  .note code{font-family:var(--font-mono);font-size:11px;color:var(--foreground)}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;font-size:11px;color:var(--muted)}
+  .flow .n{border:1px solid var(--border-strong);border-radius:8px;padding:5px 10px;background:var(--surface)}
+  .flow .a{color:var(--accent)}
+  [hidden]{display:none!important}
+  @media(max-width:900px){ .appwin{flex-direction:column} .sidebar{width:100%;flex-direction:row;align-items:center} .sb-nav{flex-direction:row} .sb-foot{display:none} .split{flex-direction:column} .chatcol{width:100%} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">XynnPrototype · fitur baru · wireframe 2 dari 2</p>
+  <h1 class="title">Dua pintu masuk: dari PRD, atau dari chat baru</h1>
+  <p class="sub">
+    Alur di bawah menempel pada struktur yang sudah ada — tab di project workspace, dan
+    halaman <span class="mono">/chat</span> yang saat ini masih placeholder.
+  </p>
+
+  <div class="switchbar" role="group" aria-label="Pintu masuk">
+    <span class="lbl">Pintu masuk</span>
+    <button class="sw seg" data-view="wizard" aria-pressed="true"><span class="dot"></span>A · Tab di project (dari PRD)</button>
+    <button class="sw seg" data-view="chat" aria-pressed="false"><span class="dot"></span>B · Chat baru (split view)</button>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- A · WIZARD / PROJECT TAB                                      -->
+  <!-- ============================================================= -->
+  <div class="stage" id="stageA">
+    <div class="appwin">
+      <aside class="sidebar">
+        <div class="sb-head"><div class="logo">X</div><span class="sb-name">XynnPrototype</span></div>
+        <nav class="sb-nav">
+          <span class="sb-item"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</span>
+          <span class="sb-item on"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v4m0 10v4M3 12h4m10 0h4"/><circle cx="12" cy="12" r="3.2"/></svg>Bikin Project</span>
+          <span class="sb-item"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Gudang PRD</span>
+          <span class="sb-item"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3m10-10h-3M5 12H2m15.5-5.5-2 2m-7 7-2 2m11 0-2-2m-7-7-2-2"/></svg>Settings</span>
+        </nav>
+        <div class="sb-foot">
+          <div class="avatar">B</div>
+          <span class="nm">billy@studio.dev</span>
+          <span class="badge-plan">PRO</span>
+        </div>
+      </aside>
+
+      <div class="main">
+        <div class="crumb">Projects / <b>Catat Aja — expense tracker</b></div>
+        <div class="head">
+          <div>
+            <h2>Catat Aja — expense tracker</h2>
+            <p>Input pengeluaran via WhatsApp, dashboard harian, ringkasan bulanan.</p>
+          </div>
+          <div class="sp"></div>
+          <button class="btn secondary sm">
+            <svg class="ic" viewBox="0 0 24 24"><path d="m4 17 10-10 3 3L7 20H4v-3Z"/><path d="m14 7 3 3"/></svg>
+            Export &amp; Sync
+          </button>
+        </div>
+
+        <!-- tab row: the new 4th tab joins the existing set -->
+        <div class="tabrow">
+          <button class="tab"><svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="m8.2 11 7.6-4M8.2 13l7.6 4"/></svg>Mindmap<span class="tick">✓</span></button>
+          <button class="tab"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v3m0 12v3M5 12h3m8 0h3"/></svg>PRD<span class="tick">✓</span></button>
+          <button class="tab"><svg class="ic" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m4 6 1 1 1.6-2M4 12l1 1 1.6-2M4 18l1 1 1.6-2"/></svg>Task<span class="tick">✓</span></button>
+          <button class="tab"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>Style<span class="tick">✓</span></button>
+          <button class="tab on"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18"/></svg>Prototype<span class="tick">✓</span></button>
+        </div>
+
+        <div class="panel">
+          <div class="card" style="padding:16px">
+            <!-- screen-ish embed: the canvas renders here, full width of the panel -->
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:13px">
+              <span style="font-size:12px;font-weight:600">Prototype Canvas</span>
+              <div class="seg"><button class="on">Preview</button><button>Code</button></div>
+              <div class="seg"><button class="on">Desktop</button><button>Mobile</button></div>
+              <div class="sp"></div>
+              <span class="pill">5 screens</span>
+              <span class="pill acc">Generated from PRD</span>
+              <button class="btn secondary sm">Regenerate</button>
+            </div>
+
+            <div class="mini-scr">
+              <div class="mthumb"><div class="t"><div class="wa" style="left:7px;top:7px;width:18px;height:4px"></div><div class="wl" style="left:7px;top:17px;width:50px;height:6px"></div><div class="wl" style="left:7px;top:27px;width:34px;height:4px"></div></div><div class="c">Landing</div></div>
+              <div class="mthumb on"><div class="t"><div class="wa" style="left:7px;top:7px;width:24px;height:11px"></div><div class="wl" style="left:35px;top:7px;width:24px;height:11px"></div><div class="wl" style="left:63px;top:7px;width:16px;height:11px"></div><div class="wl" style="left:7px;top:23px;width:72px;height:5px"></div></div><div class="c">Dashboard</div></div>
+              <div class="mthumb"><div class="t"><div class="wl" style="left:7px;top:7px;width:34px;height:5px"></div><div class="wl" style="left:7px;top:17px;width:72px;height:12px"></div></div><div class="c">Add</div></div>
+              <div class="mthumb"><div class="t"><div class="wl" style="left:7px;top:7px;width:26px;height:5px"></div><div class="wa" style="left:7px;top:17px;width:36px;height:19px"></div><div class="wl" style="left:47px;top:17px;width:32px;height:19px"></div></div><div class="c">Summary</div></div>
+              <div class="mthumb"><div class="t"><div class="wl" style="left:7px;top:7px;width:30px;height:5px"></div><div class="wl" style="left:7px;top:17px;width:72px;height:7px"></div><div class="wl" style="left:7px;top:27px;width:72px;height:7px"></div></div><div class="c">Settings</div></div>
+            </div>
+
+            <div class="ph tall">IFRAME SANDBOX · prototype HTML dari AI &nbsp;·&nbsp; 1180 × 560 &nbsp;·&nbsp; screen aktif: <b style="color:var(--foreground)">dashboard</b></div>
+
+            <div style="display:flex;align-items:center;gap:8px;margin-top:13px;flex-wrap:wrap">
+              <span class="mono" style="font-size:10.5px;color:var(--muted)">/project/ws_8f21/prototype</span>
+              <span class="sp"></span>
+              <button class="btn secondary sm">Copy HTML</button>
+              <button class="btn secondary sm">Download .zip</button>
+              <button class="btn primary sm">Sync ke VS Code</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow">
+      <span>Urutan artefak:</span>
+      <span class="n">Mindmap</span><span class="a">→</span>
+      <span class="n">PRD</span><span class="a">→</span>
+      <span class="n">Task</span><span class="a">→</span>
+      <span class="n">Style Guide</span><span class="a">→</span>
+      <span class="n" style="border-color:var(--accent);color:var(--accent)">Prototype</span>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- B · CHAT SPLIT VIEW                                           -->
+  <!-- ============================================================= -->
+  <div class="stage" id="stageB" hidden>
+    <div class="appwin">
+      <aside class="sidebar">
+        <div class="sb-head"><div class="logo">X</div><span class="sb-name">XynnPrototype</span></div>
+        <nav class="sb-nav">
+          <span class="sb-item"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</span>
+          <span class="sb-item"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v4m0 10v4M3 12h4m10 0h4"/><circle cx="12" cy="12" r="3.2"/></svg>Bikin Project</span>
+          <span class="sb-item on"><svg class="ic" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/></svg>Chat Prototype</span>
+          <span class="sb-item"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Gudang PRD</span>
+          <span class="sb-item"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3m10-10h-3M5 12H2"/></svg>Settings</span>
+        </nav>
+        <div class="sb-foot"><div class="avatar">B</div><span class="nm">billy@studio.dev</span><span class="badge-plan">PRO</span></div>
+      </aside>
+
+      <div class="main" style="padding:0">
+        <div class="split">
+          <!-- chat column -->
+          <div class="chatcol">
+            <div class="chat-head">
+              <svg class="ic" viewBox="0 0 24 24" style="color:var(--accent)"><path d="M4 5h16v11H8l-4 4V5Z"/></svg>
+              Chat Prototype
+              <span class="sp"></span>
+              <span class="pill">Claude Sonnet</span>
+            </div>
+            <div class="chat-log">
+              <div class="bub me">Bikin prototype untuk aplikasi catat pengeluaran. Ada input WhatsApp, dashboard, ringkasan bulanan.</div>
+              <div class="bub ai">
+                <div class="who">Xynn AI <span class="tagchip">reading PRD.md</span></div>
+                Siap. Saya baca PRD &amp; style guide dulu, lalu susun 5 screen. Mulai dari mana — dashboard atau flow input?
+              </div>
+              <div class="bub me">Dashboard dulu. Pakai dark theme.</div>
+              <div class="bub ai">
+                <div class="who">Xynn AI <span class="tagchip">generating · screen 2/5</span></div>
+                Oke. Struktur: <b>KPI cards</b> → <b>chart 14 hari</b> → <b>list transaksi</b>. Pratinjau muncul di kanan begitu screen pertama selesai.
+                <div class="ph short" style="margin-top:9px">PREVIEW DALAM CHAT · opsional, thumbnail kecil + tombol buka di canvas</div>
+              </div>
+            </div>
+            <div class="chat-input">
+              <textarea class="ta" rows="1" placeholder="Ubah dashboard: tambah filter kategori…"></textarea>
+              <button class="btn primary" style="padding:9px 12px">→</button>
+            </div>
+          </div>
+
+          <!-- canvas column -->
+          <div class="canvascol">
+            <div class="canvas-bar">
+              <h4>Canvas</h4>
+              <div class="seg"><button class="on">Preview</button><button>Code</button></div>
+              <div class="seg"><button class="on">Desktop</button><button>Mobile</button></div>
+              <span class="sp"></span>
+              <span class="pill acc">5 screens</span>
+              <button class="btn secondary sm">Simpan ke project</button>
+            </div>
+            <div class="canvas-body">
+              <div class="mini-scr">
+                <div class="mthumb"><div class="t"><div class="wl" style="left:7px;top:7px;width:36px;height:5px"></div><div class="wl" style="left:7px;top:17px;width:60px;height:18px"></div></div><div class="c">Landing</div></div>
+                <div class="mthumb on"><div class="t"><div class="wa" style="left:7px;top:7px;width:24px;height:11px"></div><div class="wl" style="left:35px;top:7px;width:24px;height:11px"></div><div class="wl" style="left:7px;top:23px;width:72px;height:5px"></div></div><div class="c">Dashboard</div></div>
+                <div class="mthumb"><div class="t"><div class="wl" style="left:7px;top:7px;width:34px;height:5px"></div><div class="wl" style="left:7px;top:17px;width:72px;height:12px"></div></div><div class="c">Add</div></div>
+              </div>
+              <div class="ph tall" style="min-height:300px">IFRAME SANDBOX · live update tiap balasan AI &nbsp;·&nbsp; 760 × 300</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow">
+      <span>Yang dibangun dari nol:</span>
+      <span class="n">/chat page</span><span class="a">→</span>
+      <span class="n">endpoint chat + prototype</span><span class="a">→</span>
+      <span class="n" style="border-color:var(--accent);color:var(--accent)">iframe canvas</span>
+      <span>— kanvas &amp; renderer-nya sama dengan pintu masuk A.</span>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h5>Kenapa A dulu</h5>
+      <p>Tab ini hanya menambah satu entri ke array <code>tabs</code> di
+         <code>project/[id]/page.tsx</code>, dengan <code>locked: !isPaid</code>. Tidak ada
+         route, shell, atau gating baru. Paling cepat terlihat hasilnya.</p>
+    </div>
+    <div class="note">
+      <h5>Yang dipakai bersama</h5>
+      <p>Komponen iframe canvas, endpoint generate, dan tipe data screen dipakai dua-duanya.
+         Beda hanya di sumber input: A dari <code>fullPrdMd</code>, B dari riwayat pesan.</p>
+    </div>
+    <div class="note">
+      <h5>Gating PRO</h5>
+      <p>Sama persis dengan pola yang sudah ada: <code>reason:"paid"</code> memicu
+         <code>upgrade.open()</code>. Free melihat state locked, bukan error.</p>
+    </div>
+    <div class="note">
+      <h5>Data baru</h5>
+      <p>Perlu field di model <code>Workspace</code>: <code>prototypeHtml</code> (Text) dan
+         <code>prototypeJson</code> (Json) untuk daftar screen. Pola migrasinya sama seperti
+         <code>styleGuideMd</code>.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var view = "wizard";
+  var a = document.getElementById('stageA');
+  var b = document.getElementById('stageB');
+  function render(){
+    a.hidden = view !== 'wizard';
+    b.hidden = view !== 'chat';
+    document.querySelectorAll('[data-view]').forEach(function(x){
+      x.setAttribute('aria-pressed', String(x.dataset.view === view));
+    });
+  }
+  document.querySelectorAll('[data-view]').forEach(function(x){
+    x.addEventListener('click', function(){ view = x.dataset.view; render(); });
+  });
+  render();
+})();
+</script>
+</body>
+</html>

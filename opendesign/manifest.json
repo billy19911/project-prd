@@ -1,0 +1,52 @@
+{
+  "generated": "2026-09-16T22:40:12+07:00",
+  "sections": [
+    {
+      "id": "mockups",
+      "label": "Mockups",
+      "groups": [
+        {
+          "slug": "prototype-canvas",
+          "files": [
+            {
+              "label": "prototype-canvas.html",
+              "path": "mockups/prototype-canvas/prototype-canvas.html"
+            },
+            {
+              "label": "entry-points.html",
+              "path": "mockups/prototype-canvas/entry-points.html"
+            }
+          ]
+        },
+        {
+          "slug": "pricing",
+          "files": [
+            {
+              "label": "pricing-4-tier.html",
+              "path": "mockups/pricing/pricing-4-tier.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "design-systems",
+      "label": "Design Systems",
+      "groups": [
+        {
+          "slug": "xynnprototype",
+          "files": [
+            {
+              "label": "SKILL.md",
+              "path": "design-systems/xynnprototype/SKILL.md"
+            },
+            {
+              "label": "colors_and_type.css",
+              "path": "design-systems/xynnprototype/colors_and_type.css"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>opendesign — XynnPrototype</title>
+<link rel="stylesheet" href="design-systems/xynnprototype/colors_and_type.css" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--background);color:var(--foreground);font-family:var(--font-sans);
+       font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;padding:40px 24px 80px}
+  .wrap{max-width:1000px;margin:0 auto}
+  .kicker{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  h1{font-size:28px;font-weight:600;letter-spacing:-.02em;margin-top:8px}
+  .sub{color:var(--muted);font-size:14px;margin-top:8px;max-width:70ch}
+  h2{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:38px 0 14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  a.card{display:block;text-decoration:none;border:1px solid var(--border);border-radius:var(--radius-card);
+         background:color-mix(in srgb,var(--surface) 70%,transparent);padding:18px;transition:border-color .15s,background .15s}
+  a.card:hover{border-color:var(--border-strong);background:var(--surface)}
+  a.card h3{color:var(--foreground);font-size:14px;font-weight:600}
+  a.card p{color:var(--muted);font-size:12px;margin-top:6px;line-height:1.6}
+  .mono{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:12px;display:block}
+  .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:7px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">opendesign · workspace</p>
+  <h1>XynnPrototype — design artifacts</h1>
+  <p class="sub">Fitur <b>Prototype Design</b>: dari PRD jadi prototype HTML multi-screen yang bisa
+     dilihat di canvas, plus alur chat sebagai pintu masuk kedua.</p>
+
+  <h2>Mockups</h2>
+  <div class="grid" id="mockups"></div>
+
+  <h2>Design Systems</h2>
+  <div class="grid" id="systems"></div>
+</div>
+
+<script>
+fetch('manifest.json').then(function(r){return r.json()}).then(function(m){
+  function groups(id){
+    var s = m.sections.find(function(x){return x.id===id});
+    return s ? s.groups : [];
+  }
+  function fill(host, groups, base){
+    if(!groups.length){ host.innerHTML = '<p style="color:var(--muted);font-size:12px">Belum ada berkas.</p>'; return; }
+    var html = '';
+    groups.forEach(function(g){
+      g.files.forEach(function(f){
+        html += '<a class="card" href="'+f.path+'">'
+              + '<h3><span class="dot"></span>'+g.slug+'</h3>'
+              + '<p>'+f.label+'</p>'
+              + '<span class="mono">'+f.path+'</span></a>';
+      });
+    });
+    host.innerHTML = html;
+  }
+  fill(document.getElementById('mockups'), groups('mockups'));
+  fill(document.getElementById('systems'), groups('design-systems'));
+}).catch(function(){
+  document.getElementById('mockups').innerHTML = '<p style="color:var(--muted);font-size:12px">manifest.json belum terbaca.</p>';
+});
+</script>
+</body>
+</html>

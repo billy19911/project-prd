@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>XynnPrototype — Prototype Canvas (wireframe)</title>
+<link rel="stylesheet" href="../../design-systems/xynnprototype/colors_and_type.css" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{ -webkit-text-size-adjust:100% }
+  body{
+    background:var(--background); color:var(--foreground);
+    font-family:var(--font-sans); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; padding:28px 24px 64px;
+  }
+  .mono{font-family:var(--font-mono)}
+
+  /* ---- demo chrome ---- */
+  .demo-head{max-width:1400px;margin:0 auto 20px}
+  .demo-kicker{
+    font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted)
+  }
+  .demo-title{font-size:24px;font-weight:600;letter-spacing:-.02em;margin-top:6px}
+  .demo-sub{color:var(--muted);font-size:13px;margin-top:6px;max-width:70ch}
+
+  /* ---- state toggles (mockup furniture, not product UI) ---- */
+  .switchbar{
+    max-width:1400px;margin:20px auto 24px;display:flex;flex-wrap:wrap;gap:8px;
+    padding:10px;border:1px solid var(--border);border-radius:var(--radius-card);
+    background:var(--surface);align-items:center
+  }
+  .switchbar .lbl{
+    font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+    margin-right:4px;padding-left:4px
+  }
+  .sw{
+    appearance:none;border:1px solid var(--border-strong);background:var(--surface-2);
+    color:var(--muted);font:inherit;font-size:12px;font-weight:500;padding:6px 12px;
+    border-radius:var(--radius-md);cursor:pointer;display:inline-flex;align-items:center;gap:6px
+  }
+  .sw:hover{color:var(--foreground)}
+  .sw[aria-pressed="true"]{
+    background:color-mix(in srgb,var(--accent) 15%,transparent);
+    border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)
+  }
+  .sw .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.9}
+  .sw.seg{border-radius:0}
+  .sw.seg:first-of-type{border-top-left-radius:var(--radius-md);border-bottom-left-radius:var(--radius-md)}
+  .sw.seg:last-of-type{border-top-right-radius:var(--radius-md);border-bottom-right-radius:var(--radius-md)}
+  .divider{width:1px;height:22px;background:var(--border);margin:0 4px}
+
+  /* ---- device frame ---- */
+  .stage{
+    max-width:1400px;margin:0 auto;padding:32px;border:1px solid var(--border);
+    border-radius:var(--radius-card);background:var(--surface);
+    display:flex;justify-content:center;overflow:auto
+  }
+  .stage.grid-bg{background-image:radial-gradient(color-mix(in srgb,var(--border-strong) 55%,transparent) 1px,transparent 1px);background-size:22px 22px;background-color:var(--background)}
+  .frame{
+    transition:width .35s cubic-bezier(.16,1,.3,1),height .35s cubic-bezier(.16,1,.3,1);
+    border:1px solid var(--border-strong);border-radius:16px;background:var(--background);
+    overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 60px -30px rgba(0,0,0,.8)
+  }
+  .frame.desktop{width:100%;max-width:1180px;height:620px}
+  .frame.mobile{width:390px;height:640px;border-radius:26px}
+  .frame-bar{
+    flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;height:40px;
+    border-bottom:1px solid var(--border);background:var(--surface-2)
+  }
+  .dots{display:flex;gap:5px}
+  .dots i{width:9px;height:9px;border-radius:50%;background:var(--border-strong);display:block}
+  .urlbar{
+    flex:1;height:22px;border-radius:999px;background:var(--background);
+    border:1px solid var(--border);display:flex;align-items:center;
+    padding:0 10px;font-size:10px;color:var(--muted)
+  }
+  .frame-view{flex:1;overflow:auto}
+
+  /* ---- fake app rendered INSIDE the frame ---- */
+  .app{display:flex;height:100%;min-height:100%}
+  .rail{
+    flex:none;width:56px;border-right:1px solid var(--border);padding:10px 8px;
+    display:flex;flex-direction:column;gap:6px;background:var(--surface)
+  }
+  .rail .logo{height:26px;border-radius:7px;background:var(--accent);opacity:.9;margin-bottom:6px}
+  .rail .item{height:26px;border-radius:7px;background:var(--surface-2);border:1px solid var(--border)}
+  .rail .item.on{background:color-mix(in srgb,var(--accent) 18%,transparent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+  .canvas-wrap{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    flex:none;height:44px;border-bottom:1px solid var(--border);display:flex;
+    align-items:center;gap:10px;padding:0 14px
+  }
+  .topbar h4{font-size:12px;font-weight:600;white-space:nowrap}
+  .segsm{
+    display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)
+  }
+  .segsm button{
+    appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;
+    font-size:11px;padding:4px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:5px
+  }
+  .segsm button.on{background:var(--surface-2);color:var(--foreground)}
+  .spacer{flex:1}
+  .pill{
+    font-size:10px;padding:3px 8px;border-radius:6px;border:1px solid var(--border-strong);
+    color:var(--muted)
+  }
+  .pill.acc{border-color:color-mix(in srgb,var(--accent) 40%,transparent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+  .pill.ok{border-color:color-mix(in srgb,var(--success) 35%,transparent);color:var(--success);background:color-mix(in srgb,var(--success) 12%,transparent)}
+
+  /* screen navigator strip */
+  .navstrip{
+    flex:none;display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);
+    overflow-x:auto;background:color-mix(in srgb,var(--surface) 60%,transparent)
+  }
+  .scr{
+    flex:none;width:104px;border:1px solid var(--border);border-radius:8px;overflow:hidden;
+    cursor:pointer;background:var(--background);text-align:left;padding:0
+  }
+  .scr:hover{border-color:var(--border-strong)}
+  .scr.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .scr .thumb{height:52px;background:#0b0f19;position:relative;overflow:hidden}
+  .scr .cap{
+    font-size:9px;padding:5px 7px;color:var(--muted);border-top:1px solid var(--border);
+    display:flex;justify-content:space-between;gap:4px
+  }
+  .scr.on .cap{color:var(--foreground)}
+  .wire-line{position:absolute;background:var(--border-strong);border-radius:2px;opacity:.85}
+  .wire-acc{position:absolute;background:var(--accent);border-radius:2px;opacity:.9}
+
+  .viewport{flex:1;overflow:auto;padding:20px}
+  .screen-inner{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+  .frame.mobile .viewport{padding:14px}
+  .frame.mobile .screen-inner{max-width:none}
+
+  /* placeholder = labeled striped block (per brief: never fake a complex asset) */
+  .ph{
+    border:1px dashed var(--border-strong);border-radius:10px;
+    background-image:repeating-linear-gradient(135deg,transparent 0 7px,color-mix(in srgb,var(--border-strong) 40%,transparent) 7px 8px);
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    color:var(--muted);font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;
+    padding:14px
+  }
+  .ph.tall{min-height:190px}
+  .ph.med{min-height:104px}
+  .ph.short{min-height:56px}
+
+  .nav-row{display:flex;align-items:center;gap:10px}
+  .branddot{width:22px;height:22px;border-radius:6px;background:var(--accent)}
+  .nav-links{display:flex;gap:14px;margin-left:14px;font-size:11px;color:var(--muted)}
+  .btn-acc{
+    margin-left:auto;background:var(--accent);color:#fff;font-size:11px;font-weight:500;
+    padding:6px 12px;border-radius:8px;border:0;font-family:inherit
+  }
+  .hero-line{height:14px;border-radius:4px;background:var(--border-strong)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .card-ph{
+    border:1px solid var(--border);border-radius:10px;background:var(--surface);
+    padding:12px;display:flex;flex-direction:column;gap:8px
+  }
+  .card-ph .k{height:9px;width:38%;border-radius:4px;background:var(--border-strong)}
+  .card-ph .v{height:20px;width:64%;border-radius:5px;background:color-mix(in srgb,var(--foreground) 24%,transparent)}
+  .stack-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{
+    font-family:var(--font-mono);font-size:9px;padding:3px 7px;border-radius:6px;
+    border:1px solid var(--border-strong);color:var(--muted)
+  }
+
+  /* code pane variant */
+  .codepane{
+    border:1px solid var(--border);border-radius:10px;background:var(--background);
+    padding:14px;font-family:var(--font-mono);font-size:11px;line-height:1.7;color:var(--muted);
+    white-space:pre-wrap;max-height:460px;overflow:auto
+  }
+  .codepane .tag{color:var(--accent)}
+  .codepane .at{color:var(--warning)}
+
+  /* empty + generating + locked states (rendered inside frame viewport) */
+  .state-center{
+    height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;gap:12px;padding:32px
+  }
+  .state-center h3{font-size:15px;font-weight:600}
+  .state-center p{font-size:12px;color:var(--muted);max-width:44ch}
+  .ring{
+    width:26px;height:26px;border-radius:50%;border:2px solid var(--border-strong);
+    border-top-color:var(--accent);animation:spin .8s linear infinite
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .btn-primary{
+    background:var(--accent);color:#fff;border:0;font:inherit;font-size:12px;font-weight:500;
+    padding:8px 14px;border-radius:var(--radius-lg);display:inline-flex;align-items:center;gap:7px;cursor:pointer
+  }
+  .btn-ghost{
+    background:transparent;border:0;color:var(--muted);font:inherit;font-size:12px;
+    padding:8px 10px;border-radius:8px;cursor:pointer
+  }
+  .lock-badge{
+    width:38px;height:38px;border-radius:11px;background:var(--surface-2);color:var(--muted);
+    display:flex;align-items:center;justify-content:center;border:1px solid var(--border)
+  }
+
+  /* gated overlay on a rendered prototype */
+  .gated{position:relative}
+  .gated .blurme{filter:blur(4px);pointer-events:none;user-select:none}
+  .gated .overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:12px;text-align:center;background:color-mix(in srgb,var(--background) 42%,transparent)
+  }
+
+  /* progress bar for generating */
+  .bar{width:240px;height:5px;border-radius:99px;background:var(--surface-2);overflow:hidden;position:relative}
+  .bar i{
+    position:absolute;inset:0;width:34%;border-radius:99px;background:var(--accent);
+    animation:xynn-shimmer 1.25s ease-in-out infinite
+  }
+
+  /* ================= INSPECTOR PANEL (theme editor) ================= */
+  .canvas-wrap{flex-direction:row}
+  .canvas-main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .inspector{
+    flex:none;width:284px;border-left:1px solid var(--border);
+    background:var(--surface);display:flex;flex-direction:column;overflow:hidden
+  }
+  .insp-tabs{
+    flex:none;display:flex;gap:2px;padding:8px;border-bottom:1px solid var(--border);
+    background:color-mix(in srgb,var(--surface-2) 60%,transparent)
+  }
+  .insp-tabs button{
+    flex:1;appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;
+    font-size:11px;font-weight:500;padding:6px 8px;border-radius:7px;cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px
+  }
+  .insp-tabs button.on{background:var(--surface-2);color:var(--foreground)}
+  .insp-scroll{flex:1;overflow-y:auto;padding:12px}
+  .insp-foot{
+    flex:none;padding:10px 12px;border-top:1px solid var(--border);
+    display:flex;gap:8px;background:color-mix(in srgb,var(--surface-2) 50%,transparent)
+  }
+  .insp-foot button{
+    flex:1;appearance:none;font:inherit;font-size:11px;font-weight:500;padding:7px 10px;
+    border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;
+    justify-content:center;gap:6px
+  }
+  .insp-foot .primary{background:var(--accent);color:#fff;border:1px solid var(--accent)}
+  .insp-foot .sec{background:var(--surface-2);color:var(--muted);border:1px solid var(--border-strong)}
+  .insp-foot .sec:hover{color:var(--foreground)}
+
+  /* collapsible group */
+  .grp{border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:12px}
+  .grp:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
+  .grp-head{
+    display:flex;align-items:center;gap:8px;width:100%;background:transparent;border:0;
+    font:inherit;color:var(--foreground);font-size:11px;font-weight:600;letter-spacing:.05em;
+    text-transform:uppercase;padding:2px 0 10px;cursor:pointer;text-align:left
+  }
+  .grp-head svg{flex:none;color:var(--muted);transition:transform .2s}
+  .grp-head[aria-expanded="true"] svg.chev{transform:rotate(90deg)}
+  .grp-head .count{
+    margin-left:auto;font-size:9.5px;font-weight:500;color:var(--muted);
+    text-transform:none;letter-spacing:0;font-family:var(--font-mono)
+  }
+  .grp-body{display:flex;flex-direction:column;gap:11px}
+  .grp-body[hidden]{display:none}
+
+  /* field primitives */
+  .fld{display:flex;flex-direction:column;gap:5px}
+  .fld-lab{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    font-size:10.5px;color:var(--muted)
+  }
+  .fld-lab .var{font-family:var(--font-mono);font-size:9.5px;color:color-mix(in srgb,var(--muted) 75%,transparent)}
+  .ctrl{
+    width:100%;appearance:none;background:var(--surface-2);border:1px solid var(--border-strong);
+    border-radius:7px;color:var(--foreground);font:inherit;font-size:11px;padding:6px 8px;
+    cursor:pointer
+  }
+  .ctrl:focus{outline:none;border-color:var(--accent)}
+  select.ctrl{
+    background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 13px) 12px,calc(100% - 8px) 12px;
+    background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:26px
+  }
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  /* slider */
+  .sld{display:flex;align-items:center;gap:8px}
+  input[type="range"]{
+    appearance:none;flex:1;height:3px;border-radius:99px;background:var(--border-strong);cursor:pointer
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    appearance:none;width:13px;height:13px;border-radius:50%;background:var(--foreground);
+    border:2px solid var(--background);box-shadow:0 0 0 1px var(--border-strong);cursor:grab
+  }
+  .sld .val{
+    flex:none;min-width:38px;text-align:right;font-family:var(--font-mono);font-size:10px;color:var(--foreground)
+  }
+
+  /* color swatch row */
+  .swrow{display:flex;align-items:center;gap:8px}
+  .swatch{
+    flex:none;width:26px;height:26px;border-radius:7px;border:1px solid var(--border-strong);
+    position:relative;overflow:hidden;cursor:pointer
+  }
+  .swatch input{position:absolute;inset:-6px;width:140%;height:140%;border:0;padding:0;cursor:pointer;background:transparent}
+  .swfield{
+    flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--border-strong);
+    border-radius:7px;padding:6px 8px;font-family:var(--font-mono);font-size:10px;color:var(--foreground)
+  }
+  .role{flex:none;width:58px;font-size:10px;color:var(--muted)}
+
+  /* preset theme gallery */
+  .presets{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .preset{
+    appearance:none;font:inherit;text-align:left;cursor:pointer;padding:0;overflow:hidden;
+    border:1px solid var(--border);border-radius:9px;background:var(--background)
+  }
+  .preset:hover{border-color:var(--border-strong)}
+  .preset.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .preset .strip{display:flex;height:30px}
+  .preset .strip i{flex:1;display:block}
+  .preset .meta{
+    padding:6px 7px;border-top:1px solid var(--border);background:var(--surface)
+  }
+  .preset .nm{font-size:10px;font-weight:500;color:var(--foreground);display:block}
+  .preset .ft{font-size:9px;color:var(--muted);font-family:var(--font-mono);display:block;margin-top:2px}
+  .preset.on .meta{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+
+  /* import banner */
+  .import{
+    display:flex;align-items:flex-start;gap:9px;padding:10px;border-radius:9px;
+    border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);
+    background:color-mix(in srgb,var(--accent) 7%,transparent)
+  }
+  .import svg{flex:none;color:var(--accent);margin-top:1px}
+  .import p{font-size:10.5px;color:var(--muted);line-height:1.55}
+  .import b{color:var(--foreground);font-weight:500}
+  .import button{
+    appearance:none;font:inherit;font-size:10px;font-weight:500;padding:4px 9px;border-radius:6px;
+    background:var(--accent);color:#fff;border:0;cursor:pointer;margin-top:7px
+  }
+
+  /* selection tab */
+  .sel-empty{
+    display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center;padding:34px 16px
+  }
+  .sel-empty svg{color:var(--muted)}
+  .sel-empty p{font-size:11px;color:var(--muted);line-height:1.55;max-width:30ch}
+  .sel-tag{
+    display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:8px;
+    background:var(--surface-2);border:1px solid var(--border-strong);margin-bottom:12px
+  }
+  .sel-tag .el{font-family:var(--font-mono);font-size:10.5px;color:var(--accent)}
+  .sel-tag .cls{font-size:10px;color:var(--muted);margin-left:auto}
+  .warn{
+    display:flex;gap:8px;padding:9px 10px;border-radius:8px;margin-top:4px;
+    border:1px solid color-mix(in srgb,var(--warning) 30%,transparent);
+    background:color-mix(in srgb,var(--warning) 8%,transparent)
+  }
+  .warn svg{flex:none;color:var(--warning);margin-top:1px}
+  .warn p{font-size:10px;color:var(--muted);line-height:1.5}
+  .warn b{color:var(--foreground);font-weight:500}
+  .theme-note{
+    font-size:10px;color:var(--muted);line-height:1.5;padding:9px 10px;border-radius:8px;
+    background:var(--surface-2);border:1px solid var(--border)
+  }
+
+  /* token output peek */
+  .tokens{
+    font-family:var(--font-mono);font-size:9.5px;line-height:1.75;color:var(--muted);
+    background:var(--background);border:1px solid var(--border);border-radius:8px;
+    padding:9px 10px;white-space:pre;overflow-x:auto
+  }
+  .tokens .k{color:var(--accent)}
+
+
+  .note{
+    border:1px solid var(--border);border-radius:10px;
+    background:var(--surface);padding:12px 14px
+  }
+  .note h5{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:6px}
+  .note p{font-size:12px;color:var(--muted);line-height:1.6}
+  .note code{font-family:var(--font-mono);font-size:11px;color:var(--foreground)}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<header class="demo-head">
+  <p class="demo-kicker">XynnPrototype · fitur baru · wireframe</p>
+  <h1 class="demo-title">Prototype Canvas — dari PRD jadi design siap lihat &amp; diubah</h1>
+  <p class="demo-sub">
+    Mockup low-fidelity untuk fitur ke-4 di project workspace, plus editor di canvas.
+    Palet, tipografi, dan bentuk diatur sebagai <b>token</b> — bukan pixel — sehingga
+    bisa disimpan sebagai tema dan di-export. Semua warna, radius, dan pola komponen
+    diambil dari codebase, bukan dikarang.
+  </p>
+</header>
+
+<!-- ============ toggles ============ -->
+<div class="switchbar" role="group" aria-label="State">
+  <span class="lbl">State</span>
+  <button class="sw seg" data-state="locked"   aria-pressed="false"><span class="dot"></span>Locked (Free)</button>
+  <button class="sw seg" data-state="empty"    aria-pressed="true"><span class="dot"></span>Empty</button>
+  <button class="sw seg" data-state="generating" aria-pressed="false"><span class="dot"></span>Generating</button>
+  <button class="sw seg" data-state="ready"    aria-pressed="false"><span class="dot"></span>Ready</button>
+
+  <span class="divider"></span>
+  <span class="lbl">Viewport</span>
+  <button class="sw seg" data-vp="desktop" aria-pressed="true"><span class="dot"></span>Desktop</button>
+  <button class="sw seg" data-vp="mobile"  aria-pressed="false"><span class="dot"></span>Mobile</button>
+
+  <span class="divider"></span>
+  <span class="lbl">Mode</span>
+  <button class="sw seg" data-mode="preview" aria-pressed="true"><span class="dot"></span>Preview</button>
+  <button class="sw seg" data-mode="code"    aria-pressed="false"><span class="dot"></span>Code</button>
+
+  <span class="divider"></span>
+  <span class="lbl">Editor</span>
+  <button class="sw seg" data-editor="off" aria-pressed="false"><span class="dot"></span>Editor off</button>
+  <button class="sw seg" data-editor="on"  aria-pressed="true"><span class="dot"></span>Editor on</button>
+</div>
+
+<!-- ============ device ============ -->
+<div class="stage grid-bg" id="stage">
+  <div class="frame desktop" id="frame">
+    <div class="frame-bar">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="urlbar mono" id="urlbar">xynn.dev/prototype/expense-tracker?screen=landing&amp;vp=desktop</span>
+      <span class="pill ok" id="streampill" hidden>streaming…</span>
+    </div>
+    <div class="frame-view">
+
+      <!-- ---------- app shell (always visible once not locked) ---------- -->
+      <div class="app" id="appShell">
+        <div class="rail">
+          <div class="logo"></div>
+          <div class="item"></div>
+          <div class="item on"></div>
+          <div class="item"></div>
+          <div class="item"></div>
+        </div>
+        <div class="canvas-wrap">
+          <div class="canvas-main">
+          <div class="topbar">
+            <h4>Prototype</h4>
+            <div class="segsm">
+              <button class="on">Preview</button>
+              <button>Code</button>
+            </div>
+            <div class="segsm" id="vpseg">
+              <button class="on">Desktop</button>
+              <button>Mobile</button>
+            </div>
+            <span class="spacer"></span>
+            <span class="pill">5 screens</span>
+            <button class="btn-acc" id="editToggle" style="margin-left:0">Edit tema</button>
+          </div>
+
+          <!-- screen navigator -->
+          <div class="navstrip" id="navstrip">
+            <button class="scr on" data-screen="landing">              <div class="thumb"><div class="wire-acc" style="left:8px;top:8px;width:20px;height:4px"></div><div class="wire-line" style="left:8px;top:20px;width:56px;height:6px"></div><div class="wire-line" style="left:8px;top:30px;width:40px;height:4px"></div><div class="wire-acc" style="left:8px;top:40px;width:22px;height:7px"></div></div>
+              <div class="cap"><span>Landing</span><span class="mono">1</span></div>
+            </button>
+            <button class="scr" data-screen="dashboard">
+              <div class="thumb"><div class="wire-line" style="left:8px;top:8px;width:16px;height:4px"></div><div class="wire-line" style="right:8px;top:8px;width:14px;height:4px"></div><div class="wire-acc" style="left:8px;top:20px;width:28px;height:12px"></div><div class="wire-line" style="left:42px;top:20px;width:28px;height:12px"></div><div class="wire-line" style="left:76px;top:20px;width:20px;height:12px"></div><div class="wire-line" style="left:8px;top:38px;width:88px;height:6px"></div></div>
+              <div class="cap"><span>Dashboard</span><span class="mono">2</span></div>
+            </button>
+            <button class="scr" data-screen="add">
+              <div class="thumb"><div class="wire-line" style="left:8px;top:8px;width:40px;height:5px"></div><div class="wire-line" style="left:8px;top:20px;width:88px;height:14px"></div><div class="wire-line" style="left:8px;top:40px;width:88px;height:6px"></div></div>
+              <div class="cap"><span>Add expense</span><span class="mono">3</span></div>
+            </button>
+            <button class="scr" data-screen="summary">
+              <div class="thumb"><div class="wire-line" style="left:8px;top:8px;width:30px;height:5px"></div><div class="wire-line" style="left:8px;top:20px;width:44px;height:24px"></div><div class="wire-acc" style="left:58px;top:20px;width:38px;height:24px"></div><div class="wire-line" style="left:8px;top:48px;width:88px;height:4px"></div></div>
+              <div class="cap"><span>Summary</span><span class="mono">4</span></div>
+            </button>
+            <button class="scr" data-screen="settings">
+              <div class="thumb"><div class="wire-line" style="left:8px;top:8px;width:34px;height:5px"></div><div class="wire-line" style="left:8px;top:20px;width:88px;height:8px"></div><div class="wire-line" style="left:8px;top:32px;width:88px;height:8px"></div><div class="wire-line" style="left:8px;top:44px;width:88px;height:8px"></div></div>
+              <div class="cap"><span>Settings</span><span class="mono">5</span></div>
+            </button>
+          </div>
+
+          <!-- viewport: preview -->
+          <div class="viewport" id="vpPreview">
+            <div class="screen-inner" id="screenPreview">
+              <!-- content swapped by JS -->
+            </div>
+          </div>
+
+          <!-- viewport: code -->
+          <div class="viewport" id="vpCode" hidden>
+            <div class="codepane" id="codePane"></div>
+          </div>
+          </div><!-- /canvas-main -->
+
+          <!-- ============== INSPECTOR: theme + selection ============== -->
+          <aside class="inspector" id="inspector">
+            <div class="insp-tabs" id="inspTabs">
+              <button class="on" data-itab="theme">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>
+                Theme
+              </button>
+              <button data-itab="selection">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 3 7 17 2.5-6.5L20 11 4 3Z"/></svg>
+                Selection
+              </button>
+            </div>
+
+            <!-- ---------------- THEME TAB ---------------- -->
+            <div class="insp-scroll" id="paneTheme">
+
+              <!-- import from style guide -->
+              <div class="import" style="margin-bottom:14px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                <div>
+                  <p>Style Guide project ini sudah punya <b>14 token</b>. Pakai sebagai titik awal, lalu sesuaikan.</p>
+                  <button>Import dari Style Guide</button>
+                </div>
+              </div>
+
+              <!-- presets -->
+              <div class="grp">
+                <button class="grp-head" aria-expanded="true">
+                  <svg class="chev" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m9 6 6 6-6 6"/></svg>
+                  Preset Tema
+                  <span class="count">5</span>
+                </button>
+                <div class="grp-body">
+                  <div class="presets" id="presets">
+                    <button class="preset on" data-preset="minimal-light">
+                      <div class="strip"><i style="background:#f8fafc"></i><i style="background:#e2e8f0"></i><i style="background:#0f172a"></i><i style="background:#2563eb"></i></div>
+                      <div class="meta"><span class="nm">Minimal Light</span><span class="ft">Inter · biru</span></div>
+                    </button>
+                    <button class="preset" data-preset="terminal-dark">
+                      <div class="strip"><i style="background:#080b12"></i><i style="background:#111827"></i><i style="background:#e5e9f0"></i><i style="background:#4f7cff"></i></div>
+                      <div class="meta"><span class="nm">Terminal Dark</span><span class="ft">Geist · indigo</span></div>
+                    </button>
+                    <button class="preset" data-preset="warm-paper">
+                      <div class="strip"><i style="background:#fdf8f3"></i><i style="background:#f0e6d9"></i><i style="background:#2c241b"></i><i style="background:#c2410c"></i></div>
+                      <div class="meta"><span class="nm">Warm Paper</span><span class="ft">Fraunces · oranye</span></div>
+                    </button>
+                    <button class="preset" data-preset="editorial">
+                      <div class="strip"><i style="background:#ffffff"></i><i style="background:#f4f4f5"></i><i style="background:#18181b"></i><i style="background:#dc2626"></i></div>
+                      <div class="meta"><span class="nm">Editorial</span><span class="ft">Playfair · merah</span></div>
+                    </button>
+                    <button class="preset" data-preset="forest">
+                      <div class="strip"><i style="background:#f7faf7"></i><i style="background:#e3ede3"></i><i style="background:#1a2e1a"></i><i style="background:#16a34a"></i></div>
+                      <div class="meta"><span class="nm">Forest</span><span class="ft">Sora · hijau</span></div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- seed color -->
+              <div class="grp">
+                <button class="grp-head" aria-expanded="true">
+                  <svg class="chev" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m9 6 6 6-6 6"/></svg>
+                  Warna Utama
+                  <span class="count">seed</span>
+                </button>
+                <div class="grp-body">
+                  <div class="fld">
+                    <div class="fld-lab"><span>Seed color</span><span class="var">turunan → 6 token</span></div>
+                    <div class="swrow">
+                      <label class="swatch" id="seedSwatch" style="background:#4f7cff"><input type="color" value="#4f7cff" id="seedColor" /></label>
+                      <input class="swfield" value="#4f7cff" id="seedHex" readonly />
+                    </div>
+                  </div>
+                  <div class="theme-note">
+                    Dari satu warna, sistem menurunkan <b style="color:var(--foreground)">harmoni</b>:
+                    secondary (analog), accent (komplementer), surface tint, dan text/border dengan kontras WCAG.
+                  </div>
+                  <button class="ctrl" style="text-align:center" id="genPalette">Turunkan palet otomatis</button>                </div>
+              </div>
+
+              <!-- palette roles -->
+              <div class="grp">
+                <button class="grp-head" aria-expanded="true">
+                  <svg class="chev" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m9 6 6 6-6 6"/></svg>
+                  Peran Warna
+                  <span class="count">6</span>
+                </button>
+                <div class="grp-body">
+                  <div class="swrow"><span class="role">Primary</span><label class="swatch" style="background:#4f7cff"><input type="color" value="#4f7cff" /></label><input class="swfield" value="#4F7CFF" readonly /></div>
+                  <div class="swrow"><span class="role">Secondary</span><label class="swatch" style="background:#7c5cff"><input type="color" value="#7c5cff" /></label><input class="swfield" value="#7C5CFF" readonly /></div>
+                  <div class="swrow"><span class="role">Accent</span><label class="swatch" style="background:#ff8a4f"><input type="color" value="#ff8a4f" /></label><input class="swfield" value="#FF8A4F" readonly /></div>
+                  <div class="swrow"><span class="role">Surface</span><label class="swatch" style="background:#0d1220"><input type="color" value="#0d1220" /></label><input class="swfield" value="#0D1220" readonly /></div>
+                  <div class="swrow"><span class="role">Text</span><label class="swatch" style="background:#e5e9f0"><input type="color" value="#e5e9f0" /></label><input class="swfield" value="#E5E9F0" readonly /></div>
+                  <div class="swrow"><span class="role">Border</span><label class="swatch" style="background:#1e293b"><input type="color" value="#1e293b" /></label><input class="swfield" value="#1E293B" readonly /></div>
+                </div>
+              </div>
+
+              <!-- typography -->
+              <div class="grp">
+                <button class="grp-head" aria-expanded="true">
+                  <svg class="chev" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m9 6 6 6-6 6"/></svg>
+                  Tipografi
+                  <span class="count">detail</span>
+                </button>
+                <div class="grp-body">
+                  <div class="fld">
+                    <div class="fld-lab"><span>Font heading</span></div>
+                    <select class="ctrl">
+                      <option>Geist</option><option>Inter</option><option>Sora</option>
+                      <option>Playfair Display</option><option>Fraunces</option><option>Space Grotesk</option>
+                    </select>
+                  </div>
+                  <div class="fld">
+                    <div class="fld-lab"><span>Font body</span></div>
+                    <select class="ctrl">
+                      <option>Geist</option><option>Inter</option><option>Source Serif 4</option>
+                      <option>IBM Plex Sans</option><option>DM Sans</option>
+                    </select>
+                  </div>
+                  <div class="fld">
+                    <div class="fld-lab"><span>Base size</span><span class="var">16px</span></div>
+                    <div class="sld"><input type="range" min="13" max="20" value="16" /><span class="val">16px</span></div>
+                  </div>
+                  <div class="fld">
+                    <div class="fld-lab"><span>Skala</span><span class="var">Major Third</span></div>
+                    <select class="ctrl">
+                      <option>Minor Second · 1.125</option>
+                      <option>Major Second · 1.200</option>
+                      <option>Minor Third · 1.250</option>
+                      <option selected>Major Third · 1.333</option>
+                      <option>Perfect Fourth · 1.414</option>
+                    </select>
+                  </div>
+                  <div class="row2">
+                    <div class="fld">
+                      <div class="fld-lab"><span>Line-height</span></div>
+                      <div class="sld"><input type="range" min="12" max="22" value="15" /><span class="val">1.5</span></div>
+                    </div>
+                    <div class="fld">
+                      <div class="fld-lab"><span>Tracking</span></div>
+                      <div class="sld"><input type="range" min="-5" max="5" value="0" /><span class="val">0</span></div>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <div class="fld-lab"><span>Weight heading</span></div>
+                    <div class="sld"><input type="range" min="400" max="800" step="100" value="600" /><span class="val">600</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- shape -->
+              <div class="grp">
+                <button class="grp-head" aria-expanded="true">
+                  <svg class="chev" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m9 6 6 6-6 6"/></svg>
+                  Bentuk &amp; Spasi
+                  <span class="count">2</span>
+                </button>
+                <div class="grp-body">
+                  <div class="fld">
+                    <div class="fld-lab"><span>Radius</span><span class="var">14px</span></div>
+                    <div class="sld"><input type="range" min="0" max="24" value="14" /><span class="val">14px</span></div>
+                  </div>
+                  <div class="fld">
+                    <div class="fld-lab"><span>Spasi antar elemen</span><span class="var">1.0×</span></div>
+                    <div class="sld"><input type="range" min="6" max="20" value="12" /><span class="val">1.0×</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- token output -->
+              <div class="grp">
+                <button class="grp-head" aria-expanded="false">
+                  <svg class="chev" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m9 6 6 6-6 6"/></svg>
+                  Token Output
+                  <span class="count">CSS</span>
+                </button>
+                <div class="grp-body" hidden>
+                  <div class="tokens">:root{
+  <span class="k">--color-primary</span>:   #4F7CFF;
+  <span class="k">--color-secondary</span>: #7C5CFF;
+  <span class="k">--color-accent</span>:    #FF8A4F;
+  <span class="k">--color-surface</span>:   #0D1220;
+  <span class="k">--color-text</span>:      #E5E9F0;
+  <span class="k">--color-border</span>:    #1E293B;
+  <span class="k">--font-heading</span>:    Geist;
+  <span class="k">--font-body</span>:       Geist;
+  <span class="k">--size-base</span>:       16px;
+  <span class="k">--scale</span>:           1.333;
+  <span class="k">--leading</span>:         1.5;
+  <span class="k">--tracking</span>:        0;
+  <span class="k">--radius</span>:          14px;
+}</div>
+                </div>
+              </div>
+
+            </div><!-- /paneTheme -->
+
+            <!-- ---------------- SELECTION TAB ---------------- -->
+            <div class="insp-scroll" id="paneSelection" hidden>
+              <div id="selEmpty" class="sel-empty" role="button" tabindex="0" style="cursor:pointer">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m4 3 7 17 2.5-6.5L20 11 4 3Z"/></svg>
+                <p>Klik salah satu elemen di canvas untuk mengubah propertinya.</p>
+                <span class="pill">Elemen yang bisa dipilih: tombol, kartu, teks</span>
+                <span class="pill acc">Demo: klik di sini untuk lihat panel elemen</span>
+              </div>
+
+              <div id="selProps" hidden>
+                <div class="sel-tag">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>
+                  <span class="el">&lt;button&gt;</span>
+                  <span class="cls">.btn-acc</span>
+                  <button id="selClear" title="Lepas pilihan" style="appearance:none;border:0;background:transparent;color:var(--muted);cursor:pointer;font:inherit;font-size:13px;line-height:1;padding:0 0 0 6px">&times;</button>
+                </div>
+
+                <div class="warn">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6A2 2 0 0 0 22 18L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                  <p>Perubahan di sini <b>menimpa</b> token tema untuk elemen ini saja. Pakai tab <b>Theme</b> kalau mau mengubah semua tombol sekaligus.</p>
+                </div>
+
+                <div class="grp" style="margin-top:14px">
+                  <div class="grp-body">
+                    <div class="fld">
+                      <div class="fld-lab"><span>Isi</span></div>
+                      <input class="ctrl" value="+ Catat pengeluaran" />
+                    </div>
+                    <div class="fld">
+                      <div class="fld-lab"><span>Fill</span><span class="var">var(--color-primary)</span></div>
+                      <div class="swrow"><label class="swatch" style="background:#4f7cff"><input type="color" value="#4f7cff" /></label><input class="swfield" value="#4F7CFF" readonly /></div>
+                    </div>
+                    <div class="fld">
+                      <div class="fld-lab"><span>Text</span></div>
+                      <div class="swrow"><label class="swatch" style="background:#ffffff"><input type="color" value="#ffffff" /></label><input class="swfield" value="#FFFFFF" readonly /></div>
+                    </div>
+                    <div class="row2">
+                      <div class="fld">
+                        <div class="fld-lab"><span>Radius</span></div>
+                        <div class="sld"><input type="range" min="0" max="24" value="8" /><span class="val">8px</span></div>
+                      </div>
+                      <div class="fld">
+                        <div class="fld-lab"><span>Padding</span></div>
+                        <div class="sld"><input type="range" min="4" max="24" value="12" /><span class="val">12px</span></div>
+                      </div>
+                    </div>
+                    <div class="fld">
+                      <div class="fld-lab"><span>Font size</span></div>
+                      <div class="sld"><input type="range" min="9" max="20" value="11" /><span class="val">11px</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div><!-- /paneSelection -->
+
+            <div class="insp-foot">
+              <button class="sec" id="resetTheme">Reset</button>
+              <button class="primary" id="saveTheme">Simpan tema</button>
+            </div>
+          </aside>
+
+        </div><!-- /canvas-wrap -->
+      </div><!-- /app -->
+
+      <!-- ---------- locked / empty / generating states ---------- -->
+      <div class="state-center" id="stateLocked" hidden>
+        <div class="lock-badge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3>Prototype Design khusus paket PRO</h3>
+        <p>Ubah PRD, task, dan style guide Anda menjadi prototype HTML yang bisa langsung dilihat di canvas — lengkap dengan alur multi-screen dan tampilan mobile &amp; desktop.</p>
+        <button class="btn-primary">Upgrade ke PRO</button>
+        <span class="pill">Tersedia di paket PRO &amp; PRO Tahunan</span>
+      </div>
+
+      <div class="state-center" id="stateEmpty" hidden>
+        <div class="lock-badge" style="background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 25%,transparent)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+        </div>
+        <h3>Belum ada prototype</h3>
+        <p>AI akan menyusun design dari PRD dan Style Guide Anda. Hasilnya berupa HTML mandiri — multi-screen, siap dilihat di canvas.</p>
+        <button class="btn-primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v3m0 12v3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3"/></svg> Generate Prototype</button>
+      </div>
+
+      <div class="state-center" id="stateGenerating" hidden>
+        <div class="ring"></div>
+        <h3>Menyusun prototype…</h3>
+        <p id="genLabel">Membaca PRD dan Style Guide</p>
+        <div class="bar"><i></i></div>
+        <span class="pill">Screen 2 dari 5 · dashboard</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============ annotation ============ -->
+<div class="notes">
+  <div class="note">
+    <h5>Pintu masuk</h5>
+    <p>Tab ke-4 di <code>project/[id]</code>, sejajar dengan <code>Mindmap · PRD · Task · Style</code>.
+       Mengikuti pola <code>locked / reason</code> yang sudah ada — belum perlu komponen baru.</p>
+  </div>
+  <div class="note">
+    <h5>Multi-screen</h5>
+    <p>Strip thumbnail di atas viewport. Tiap thumbnail di-generate dari struktur screen
+       yang sama dengan iframe, bukan screenshot — jadi bisa diklik dan tetap tajam.</p>
+  </div>
+  <div class="note">
+    <h5>Responsive</h5>
+    <p>Satu render, dua viewport. Toggle Desktop/Mobile mengubah lebar frame, bukan
+       me-render ulang. URL menyimpan <code>?vp=</code> supaya bisa dibagikan.</p>
+  </div>
+  <div class="note">
+    <h5>Isolasi iframe</h5>
+    <p>Output AI masuk <code>&lt;iframe sandbox="allow-scripts"&gt;</code> — CSS-nya tidak
+       bocor ke shell XynnPrototype, dan shell tidak bocor ke dalam prototype.</p>
+  </div>
+  <div class="note">
+    <h5>Editor: dua lapis</h5>
+    <p><b>Theme</b> mengubah token global — semua screen ikut berubah. <b>Selection</b>
+       mengubah satu elemen saja dan <b>menimpa</b> token. Dipisah karena override
+       liar bikin export &amp; konsistensi berantakan.</p>
+  </div>
+  <div class="note">
+    <h5>Seed → palet</h5>
+    <p>Satu warna jadi sumber harmoni: secondary analog, accent komplementer, surface
+       tint, text/border dijaga pada kontras WCAG. Bukan 6 color picker yang harus
+       ditebak sendiri.</p>
+  </div>
+  <div class="note">
+    <h5>Token, bukan pixel</h5>
+    <p>Panel menulis <code>--color-primary</code>, bukan <code>background:#4f7cff</code>.
+       Karena itu hasilnya bisa disimpan sebagai tema, dipakai ulang, dan di-export
+       sebagai CSS variables.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  var state = "empty", vp = "desktop", mode = "preview", screen = "landing",
+      editor = "on", itab = "theme";
+
+  /* ---------- screen content (placeholders, labeled honestly) ---------- */
+  var SCREENS = {
+    landing: {
+      title: "landing",
+      html:
+        '<div class="nav-row">'+
+          '<div class="branddot"></div>'+
+          '<div style="font-size:12px;font-weight:600">CatatAja</div>'+
+          '<div class="nav-links"><span>Fitur</span><span>Harga</span><span>FAQ</span></div>'+
+          '<button class="btn-acc">Mulai gratis</button>'+
+        '</div>'+
+        '<div class="ph tall">HERO · headline + subhead + 2 CTA + ilustrasi produk</div>'+
+        '<div class="grid3">'+
+          '<div class="card-ph"><div class="k"></div><div class="v"></div><div class="ph short">icon</div></div>'+
+          '<div class="card-ph"><div class="k"></div><div class="v"></div><div class="ph short">icon</div></div>'+
+          '<div class="card-ph"><div class="k"></div><div class="v"></div><div class="ph short">icon</div></div>'+
+        '</div>'+
+        '<div class="ph med">SOCIAL PROOF · logo partner + kutipan testimoni</div>'
+    },
+    dashboard: {
+      title: "dashboard",
+      html:
+        '<div class="nav-row">'+
+          '<div style="font-size:12px;font-weight:600">Dashboard</div>'+
+          '<div class="nav-links"><span>Hari ini</span><span>Minggu ini</span><span>Bulan ini</span></div>'+
+          '<button class="btn-acc">+ Catat pengeluaran</button>'+
+        '</div>'+
+        '<div class="grid3">'+
+          '<div class="card-ph"><div class="k"></div><div class="v"></div><div class="ph short">sparkline</div></div>'+
+          '<div class="card-ph"><div class="k"></div><div class="v"></div><div class="ph short">sparkline</div></div>'+
+          '<div class="card-ph"><div class="k"></div><div class="v"></div><div class="ph short">sparkline</div></div>'+
+        '</div>'+
+        '<div class="ph med">CHART · pengeluaran 14 hari</div>'+
+        '<div class="card-ph"><div class="k">Transaksi terakhir</div><div class="ph med">LIST · 5 baris + kategori + nominal</div></div>'
+    },
+    add: {
+      title: "add-expense",
+      html:
+        '<div class="nav-row"><div style="font-size:12px;font-weight:600">Catat Pengeluaran</div><span class="spacer"></span></div>'+
+        '<div class="card-ph"><div class="k">Nominal</div><div class="ph short">INPUT · angka, prefix Rp</div></div>'+
+        '<div class="card-ph"><div class="k">Kategori</div><div class="stack-chips"><span class="chip">Makan</span><span class="chip">Transport</span><span class="chip">Belanja</span><span class="chip">+</span></div></div>'+
+        '<div class="card-ph"><div class="k">Catatan</div><div class="ph short">TEXTAREA · opsional</div></div>'+
+        '<div class="card-ph"><div class="k">Tanggal</div><div class="ph short">DATE PICKER</div></div>'+
+        '<div class="nav-row"><span class="spacer"></span><button class="btn-primary">Simpan</button></div>'
+    },
+    summary: {
+      title: "summary",
+      html:
+        '<div class="nav-row"><div style="font-size:12px;font-weight:600">Ringkasan Februari</div><span class="spacer"></span><span class="pill">Export</span></div>'+
+        '<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+          '<div class="card-ph"><div class="k">Total keluar</div><div class="ph med">ANGKA BESAR + delta vs bulan lalu</div></div>'+
+          '<div class="card-ph"><div class="k">Rata-rata harian</div><div class="ph med">ANGKA BESAR + tren</div></div>'+
+        '</div>'+
+        '<div class="ph med">DONUT · komposisi per kategori</div>'+
+        '<div class="ph med">TABLE · kategori, jumlah, % , vs bulan lalu</div>'
+    },
+    settings: {
+      title: "settings",
+      html:
+        '<div class="nav-row"><div style="font-size:12px;font-weight:600">Pengaturan</div></div>'+
+        '<div class="ph short">ROW · Profil &amp; foto</div>'+
+        '<div class="ph short">ROW · Nomor WhatsApp untuk input</div>'+
+        '<div class="ph short">ROW · Mata uang &amp; zona waktu</div>'+
+        '<div class="ph short">ROW · Ekspor data bulanan (CSV)</div>'+
+        '<div class="ph short">ROW · Hapus akun</div>'
+    }
+  };
+
+  var CODE = {
+    landing: '<span class="tag">&lt;section</span> <span class="at">class</span>=<span class="tag">"hero"</span><span class="tag">&gt;</span>\n  &lt;h1&gt;Catat pengeluaran, cukup dari WhatsApp&lt;/h1&gt;\n  &lt;p&gt;Dashboard rapi + ringkasan bulanan otomatis.&lt;/p&gt;\n  &lt;a class="btn"&gt;Mulai gratis&lt;/a&gt;\n<span class="tag">&lt;/section&gt;</span>',
+    dashboard: '<span class="tag">&lt;header</span> <span class="at">class</span>=<span class="tag">"dash-top"</span><span class="tag">&gt;</span>\n  &lt;h1&gt;Dashboard&lt;/h1&gt;\n  &lt;button class="btn"&gt;+ Catat pengeluaran&lt;/button&gt;\n<span class="tag">&lt;/header&gt;</span>\n\n<span class="tag">&lt;div</span> <span class="at">class</span>=<span class="tag">"kpi-grid"</span><span class="tag">&gt;</span>\n  &lt;!-- 3 kartu: hari ini · minggu ini · bulan ini --&gt;\n<span class="tag">&lt;/div&gt;</span>\n\n<span class="tag">&lt;canvas</span> <span class="at">id</span>=<span class="tag">"chart-14d"</span><span class="tag">&gt;&lt;/canvas&gt;</span>',
+    add: '<span class="tag">&lt;form</span> <span class="at">class</span>=<span class="tag">"expense-form"</span><span class="tag">&gt;</span>\n  &lt;label&gt;Nominal&lt;input type="number" inputmode="numeric"&gt;&lt;/label&gt;\n  &lt;fieldset&gt;Kategori …&lt;/fieldset&gt;\n  &lt;label&gt;Catatan&lt;textarea&gt;&lt;/textarea&gt;&lt;/label&gt;\n  &lt;button type="submit"&gt;Simpan&lt;/button&gt;\n<span class="tag">&lt;/form&gt;</span>',
+    summary: '<span class="tag">&lt;section</span> <span class="at">class</span>=<span class="tag">"summary"</span><span class="tag">&gt;</span>\n  &lt;h2&gt;Ringkasan Februari&lt;/h2&gt;\n  &lt;canvas id="donut-kategori"&gt;&lt;/canvas&gt;\n  &lt;table id="tabel-kategori"&gt;…&lt;/table&gt;\n<span class="tag">&lt;/section&gt;</span>',
+    settings: '<span class="tag">&lt;ul</span> <span class="at">class</span>=<span class="tag">"settings-list"</span><span class="tag">&gt;</span>\n  &lt;li&gt;Profil &amp;amp; foto&lt;/li&gt;\n  &lt;li&gt;Nomor WhatsApp&lt;/li&gt;\n  &lt;li&gt;Mata uang &amp;amp; zona waktu&lt;/li&gt;\n  &lt;li&gt;Ekspor CSV bulanan&lt;/li&gt;\n  &lt;li class="danger"&gt;Hapus akun&lt;/li&gt;\n<span class="tag">&lt;/ul&gt;</span>'
+  };
+
+  var GEN_STEPS = [
+    "Membaca PRD dan Style Guide",
+    "Menyusun design token dari style guide",
+    "Membuat screen: landing",
+    "Membuat screen: dashboard",
+    "Membuat screen: add expense",
+    "Membuat screen: summary",
+    "Membuat screen: settings",
+    "Menyesuaikan breakpoint mobile",
+    "Merapikan dan menutup HTML"
+  ];
+
+  var els = {
+    stage: document.getElementById('stage'),
+    frame: document.getElementById('frame'),
+    urlbar: document.getElementById('urlbar'),
+    shell: document.getElementById('appShell'),
+    stateLocked: document.getElementById('stateLocked'),
+    stateEmpty: document.getElementById('stateEmpty'),
+    stateGenerating: document.getElementById('stateGenerating'),
+    genLabel: document.getElementById('genLabel'),
+    navstrip: document.getElementById('navstrip'),
+    vpPreview: document.getElementById('vpPreview'),
+    vpCode: document.getElementById('vpCode'),
+    screenPreview: document.getElementById('screenPreview'),
+    codePane: document.getElementById('codePane'),
+    streampill: document.getElementById('streampill'),
+    vpseg: document.getElementById('vpseg'),
+    inspector: document.getElementById('inspector'),
+    inspTabs: document.getElementById('inspTabs'),
+    paneTheme: document.getElementById('paneTheme'),
+    paneSelection: document.getElementById('paneSelection'),
+    presets: document.getElementById('presets'),
+    editToggle: document.getElementById('editToggle'),
+    selEmpty: document.getElementById('selEmpty'),
+    selProps: document.getElementById('selProps')
+  };
+
+  function renderScreen(){
+    var s = SCREENS[screen] || SCREENS.dashboard;
+    els.screenPreview.innerHTML = s.html;
+    els.codePane.innerHTML = CODE[screen] || CODE.dashboard;
+    els.urlbar.textContent = 'xynn.dev/prototype/expense-tracker?screen=' + s.title + '&vp=' + vp;
+  }
+
+  function render(){
+    /* frame size */
+    els.frame.classList.toggle('desktop', vp === 'desktop');
+    els.frame.classList.toggle('mobile', vp === 'mobile');
+
+    /* states */
+    var showShell = (state === 'ready');
+    els.shell.hidden = !showShell;
+    els.stateLocked.hidden = state !== 'locked';
+    els.stateEmpty.hidden = state !== 'empty';
+    els.stateGenerating.hidden = state !== 'generating';
+
+    /* mode */
+    els.vpPreview.hidden = mode !== 'preview';
+    els.vpCode.hidden = mode !== 'code';
+
+    /* streaming pill */
+    els.streampill.hidden = state !== 'generating';
+
+    /* nav strip + topbar only make sense when ready */
+    els.navstrip.hidden = state !== 'ready';
+
+    /* editor: only meaningful when a prototype is rendered */
+    var editorOn = (editor === 'on') && showShell;
+    els.inspector.hidden = !editorOn;
+    els.editToggle.textContent = (editor === 'on') ? 'Tutup editor' : 'Edit tema';
+    els.editToggle.style.display = showShell ? '' : 'none';
+
+    if (showShell) renderScreen();
+
+    /* sync in-frame segmented controls */
+    els.vpseg.querySelectorAll('button').forEach(function(b, i){
+      b.classList.toggle('on', (i === 0) === (vp === 'desktop'));
+    });
+
+    /* reveal animation */
+    var host = showShell ? els.vpPreview : (state==='generating'?els.stateGenerating:state==='locked'?els.stateLocked:els.stateEmpty);
+    if (host && !host.classList.contains('xynn-rise')) host.classList.add('xynn-rise');
+
+    /* toggles pressed state */
+    document.querySelectorAll('[data-state]').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.dataset.state === state));
+    });
+    document.querySelectorAll('[data-vp]').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.dataset.vp === vp));
+    });
+    document.querySelectorAll('[data-mode]').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+    });
+    document.querySelectorAll('[data-editor]').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.dataset.editor === editor));
+    });
+    document.querySelectorAll('.scr').forEach(function(b){
+      b.classList.toggle('on', b.dataset.screen === screen);
+    });
+    document.querySelectorAll('[data-itab]').forEach(function(b){
+      b.classList.toggle('on', b.dataset.itab === itab);
+    });
+    els.paneTheme.hidden = itab !== 'theme';
+    els.paneSelection.hidden = itab !== 'selection';
+    els.inspTabs.style.display = editorOn ? '' : 'none';
+  }
+
+  /* ---------- events ---------- */
+  document.querySelectorAll('[data-state]').forEach(function(b){
+    b.addEventListener('click', function(){ state = b.dataset.state; render(); });
+  });
+  document.querySelectorAll('[data-vp]').forEach(function(b){
+    b.addEventListener('click', function(){ vp = b.dataset.vp; render(); });
+  });
+  document.querySelectorAll('[data-mode]').forEach(function(b){
+    b.addEventListener('click', function(){ mode = b.dataset.mode; render(); });
+  });
+  els.navstrip.addEventListener('click', function(e){
+    var t = e.target.closest('.scr'); if(!t) return;
+    screen = t.dataset.screen; render();
+  });
+
+  /* editor master toggle (topbar) */
+  els.editToggle.addEventListener('click', function(){
+    editor = (editor === 'on') ? 'off' : 'on'; render();
+  });
+  document.querySelectorAll('[data-editor]').forEach(function(b){
+    b.addEventListener('click', function(){ editor = b.dataset.editor; render(); });
+  });
+
+  /* inspector tabs */
+  els.inspTabs.addEventListener('click', function(e){
+    var b = e.target.closest('[data-itab]'); if(!b) return;
+    itab = b.dataset.itab; render();
+  });
+
+  /* inspector collapsible groups */
+  document.querySelectorAll('.grp-head').forEach(function(h){
+    h.addEventListener('click', function(){
+      var open = h.getAttribute('aria-expanded') === 'true';
+      h.setAttribute('aria-expanded', String(!open));
+      var body = h.nextElementSibling;
+      if (body) body.hidden = open;
+    });
+  });
+
+  /* preset picker: swaps the selected card + reflects into the seed swatch */
+  var PRESET_SEEDS = {
+    'minimal-light': '#2563eb', 'terminal-dark': '#4f7cff', 'warm-paper': '#c2410c',
+    'editorial': '#dc2626', 'forest': '#16a34a'
+  };
+  els.presets.addEventListener('click', function(e){
+    var b = e.target.closest('.preset'); if(!b) return;
+    els.presets.querySelectorAll('.preset').forEach(function(p){
+      p.classList.toggle('on', p === b);
+    });
+    var seed = PRESET_SEEDS[b.dataset.preset];
+    if (seed){
+      var sc = document.getElementById('seedColor');
+      var sh = document.getElementById('seedHex');
+      var sw = document.getElementById('seedSwatch');
+      if (sc) sc.value = seed;
+      if (sh) sh.value = seed;
+      if (sw) sw.style.background = seed;
+    }
+  });
+
+  /* seed → palette: rotate the seed hue to fill each role (mockup only) */
+  document.getElementById('genPalette').addEventListener('click', function(){
+    var seed = document.getElementById('seedColor').value;
+    var rgb = [1,3,5].map(function(i){ return parseInt(seed.substr(i,2), 16); });
+    var max = Math.max.apply(null, rgb), min = Math.min.apply(null, rgb), d = max - min;
+    var h = 0;
+    if (d) {
+      if (max === rgb[0]) h = ((rgb[1]-rgb[2])/d) % 6;
+      else if (max === rgb[1]) h = (rgb[2]-rgb[0])/d + 2;
+      else h = (rgb[0]-rgb[1])/d + 4;
+      h = Math.round(h * 60); if (h < 0) h += 360;
+    }
+    var sat = max ? d / max : 0, light = (max + min) / 510;
+    function hsl2hex(H, S, L){
+      H = ((H % 360) + 360) % 360;
+      var c = (1 - Math.abs(2*L - 1)) * S, x = c * (1 - Math.abs((H/60) % 2 - 1)), m = L - c/2;
+      var t = H < 60 ? [c,x,0] : H < 120 ? [x,c,0] : H < 180 ? [0,c,x]
+            : H < 240 ? [0,x,c] : H < 300 ? [x,0,c] : [c,0,x];
+      return '#' + t.map(function(v){
+        return ('0' + Math.round((v+m)*255).toString(16)).slice(-2);
+      }).join('').toUpperCase();
+    }
+    var PAL = [
+      null,                        /* primary — keep the seed exact, no round-trip */
+      [h + 30, sat, light],        /* secondary — analog */
+      [h + 180, sat, light],       /* accent — complementary */
+      [h, sat * 0.35, 0.08],       /* surface tint */
+      [h, sat * 0.10, 0.92],       /* text */
+      [h, sat * 0.30, 0.18]        /* border */
+    ];
+    var rows = document.querySelectorAll('#paneTheme .swrow');
+    /* rows: 0 = seed, 1..6 = roles */
+    PAL.forEach(function(p, i){
+      if (!p) return;
+      var hex = hsl2hex(p[0], Math.min(1, Math.max(0, p[1])), Math.min(1, Math.max(0, p[2])));
+      var row = rows[i + 1]; if (!row) return;
+      var sw = row.querySelector('.swatch'), inp = row.querySelector('input[type="color"]'),
+          txt = row.querySelector('.swfield');
+      if (sw) sw.style.background = hex;
+      if (inp) inp.value = hex.toLowerCase();
+      if (txt) txt.value = hex;
+    });
+    /* primary mirrors the seed verbatim */
+    var pro = rows[1];
+    if (pro){
+      var psw = pro.querySelector('.swatch'), pinp = pro.querySelector('input[type="color"]'),
+          ptxt = pro.querySelector('.swfield');
+      if (psw) psw.style.background = seed;
+      if (pinp) pinp.value = seed;
+      if (ptxt) ptxt.value = seed.toUpperCase();
+    }
+  });
+
+  /* selection tab: show properties once an element is "picked" */
+  els.paneSelection.addEventListener('click', function(e){
+    if (e.target.closest('#selClear')){
+      els.selEmpty.hidden = false; els.selProps.hidden = true; return;
+    }
+    if (e.target.closest('#selEmpty')){
+      els.selEmpty.hidden = true; els.selProps.hidden = false;
+    }
+  });
+
+  /* live value readout for every range input (mockup feedback) */
+  var UNIT = {
+    'Line-height': function(v){ return (v/10).toFixed(1); },
+    'Tracking':    function(v){ return (v > 0 ? '+' : '') + v; },
+    'Spasi antar elemen': function(v){ return (v/12).toFixed(1) + '\u00d7'; }
+  };
+  document.querySelectorAll('input[type="range"]').forEach(function(r){
+    var out = r.parentElement.querySelector('.val');
+    if (!out) return;
+    var fld = r.closest('.fld');
+    var label = fld ? fld.querySelector('.fld-lab span') : null;
+    var key = label ? label.textContent.trim() : '';
+    r.addEventListener('input', function(){
+      if (UNIT[key]) { out.textContent = UNIT[key](Number(r.value)); return; }
+      var suffix = (out.textContent.match(/[a-z%]+$/i) || [''])[0];
+      out.textContent = r.value + suffix;
+    });
+  });
+
+  /* in-frame topbar segmented (synced) */
+  document.querySelectorAll('.segsm').forEach(function(seg, idx){
+    seg.addEventListener('click', function(e){
+      var b = e.target.closest('button'); if(!b) return;
+      var btns = Array.prototype.slice.call(seg.querySelectorAll('button'));
+      var i = btns.indexOf(b);
+      if (idx === 0){ mode = (i === 0) ? 'preview' : 'code'; }
+      else { vp = (i === 0) ? 'desktop' : 'mobile'; }
+      render();
+    });
+  });
+
+  /* ---------- generating label cycle ---------- */
+  var gi = 0;
+  setInterval(function(){
+    if (state !== 'generating') return;
+    gi = (gi + 1) % GEN_STEPS.length;
+    els.genLabel.textContent = GEN_STEPS[gi];
+  }, 1400);
+
+  render();
+})();
+</script>
+</body>
+</html>

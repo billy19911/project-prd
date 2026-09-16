@@ -1,0 +1,86 @@
+/* =====================================================================
+   XynnPrototype — Design System (imported from codebase)
+   ---------------------------------------------------------------------
+   Source of truth: xynn-prototype/app/globals.css
+   Extracted: 2026-02-14
+   Palette: Dark Slate/Zinc, ONE accent (indigo/blue). Tegas & efisien.
+   ===================================================================== */
+
+:root {
+  /* Surfaces — stacked darkest → lightest */
+  --background: #080b12;   /* app canvas */
+  --surface: #0d1220;      /* cards (used at /70 with backdrop blur) */
+  --surface-2: #111827;    /* nested panels, inputs, hover fills */
+
+  /* Lines */
+  --border: #1e293b;        /* default 1px hairline */
+  --border-strong: #2b3a52; /* emphasis, secondary button, node stroke */
+
+  /* Text */
+  --foreground: #e5e9f0;   /* primary text */
+  --muted: #8b97ab;        /* secondary text, labels, icons */
+
+  /* Accent — single hue. Do not introduce a second accent. */
+  --accent: #4f7cff;
+  --accent-hover: #3d6bf0;
+
+  /* Semantic */
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
+
+  /* Geometry */
+  --radius-card: 14px;
+  --radius-lg: 10px;   /* buttons, inputs */
+  --radius-md: 8px;    /* badges, nodes */
+
+  /* Type */
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+/* ---------------------------------------------------------------------
+   Type scale (observed across app/(main) and app/(public))
+   h1 page title : 24px / 600 / tracking-tight
+   h2 section    : 20px / 600 / tracking-tight
+   h3 card title : 14px / 600
+   body          : 14px / 400
+   small         : 12px / 400
+   micro-label   : 11px / 500 (muted, often uppercase w/ tracking-wide)
+   technical     : 12px / mono
+   --------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------
+   Usage rules (anti-slop, derived from the codebase, not invented)
+   - Backgrounds never gradient. Flat --background.
+   - Cards: bg-surface/70 + backdrop-blur, 1px --border, radius 14px.
+   - Active nav / tab: 2px x 16px accent bar at the left edge.
+   - Locked affordances: text-muted/40 + a Lock icon. Never a red wall.
+   - Gated content: blur-sm + pointer-events-none + centered unlock overlay.
+   - Loading: 24px ring spinner (border-2, --border-strong track,
+     --accent head) or Loader2 rotate. No content skeletons with
+     shimmer. Exception: a determinate progress bar may animate a
+     --accent segment (indeterminate generation progress only).
+   - Tech-stack chips always render in --font-mono.
+   - Motion: 0.6s cubic-bezier(0.16,1,0.3,1) rise-in for step content.
+   --------------------------------------------------------------------- */
+
+/* Helpers used by the mockups (mirror of globals.css utilities) */
+.bg-grid {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--border-strong) 60%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+}
+
+@keyframes xynn-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.xynn-rise { animation: xynn-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes xynn-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(220%); }
+}

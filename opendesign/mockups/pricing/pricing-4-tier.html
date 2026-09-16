@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>XynnPrototype — Langganan 4 Tier (wireframe)</title>
+<link rel="stylesheet" href="../../design-systems/xynnprototype/colors_and_type.css" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--background);color:var(--foreground);
+    font-family:var(--font-sans);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;padding:28px 24px 72px
+  }
+  .mono{font-family:var(--font-mono)}
+  .wrap{max-width:1400px;margin:0 auto}
+  .kicker{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  h1.title{font-size:24px;font-weight:600;letter-spacing:-.02em;margin-top:6px}
+  .sub{color:var(--muted);font-size:13px;margin-top:6px;max-width:76ch}
+
+  /* ---------- mockup switchbar ---------- */
+  .switchbar{
+    margin:20px 0 24px;display:flex;flex-wrap:wrap;gap:8px;padding:10px;
+    border:1px solid var(--border);border-radius:var(--radius-card);background:var(--surface);align-items:center
+  }
+  .switchbar .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding-left:4px;margin-right:4px}
+  .sw{
+    appearance:none;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--muted);
+    font:inherit;font-size:12px;font-weight:500;padding:6px 12px;border-radius:var(--radius-md);cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px
+  }
+  .sw:hover{color:var(--foreground)}
+  .sw[aria-pressed="true"]{background:color-mix(in srgb,var(--accent) 15%,transparent);border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent)}
+  .sw .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .sw.seg{border-radius:0}
+  .sw.seg:first-of-type{border-top-left-radius:var(--radius-md);border-bottom-left-radius:var(--radius-md)}
+  .sw.seg:last-of-type{border-top-right-radius:var(--radius-md);border-bottom-right-radius:var(--radius-md)}
+  .divider{width:1px;height:22px;background:var(--border);margin:0 4px}
+
+  /* ---------- stage ---------- */
+  .stage{
+    border:1px solid var(--border);border-radius:var(--radius-card);background-color:var(--background);
+    padding:34px 26px;overflow:auto;
+    background-image:radial-gradient(color-mix(in srgb,var(--border-strong) 55%,transparent) 1px,transparent 1px);
+    background-size:22px 22px
+  }
+
+  /* ---------- billing toggle (matches pricing-plans.tsx) ---------- */
+  .billing{display:flex;justify-content:center;margin-bottom:34px}
+  .billing .pill{
+    display:inline-flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:999px;
+    background:color-mix(in srgb,var(--surface) 60%,transparent)
+  }
+  .billing button{
+    position:relative;appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;
+    font-size:13px;font-weight:500;padding:7px 16px;border-radius:999px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px
+  }
+  .billing button.on{background:var(--accent);color:#fff}
+  .billing .save{font-size:9.5px;font-weight:600;padding:2px 6px;border-radius:999px;background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success)}
+  .billing button.on .save{background:rgba(255,255,255,.22);color:#fff}
+
+  /* ---------- 4-tier grid (was lg:grid-cols-3 → now 4) ---------- */
+  .tiers{display:grid;gap:16px;grid-template-columns:repeat(1,1fr)}
+  @media(min-width:700px){ .tiers{grid-template-columns:repeat(2,1fr)} }
+  @media(min-width:1100px){ .tiers{grid-template-columns:repeat(4,1fr)} }
+
+  .tier{
+    position:relative;display:flex;flex-direction:column;border:1px solid var(--border);
+    border-radius:16px;background:color-mix(in srgb,var(--surface) 60%,transparent);
+    padding:22px;transition:border-color .15s
+  }
+  .tier:hover{border-color:var(--border-strong)}
+  .tier.pop{
+    border-color:color-mix(in srgb,var(--accent) 50%,transparent);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 20%,transparent)
+  }
+  /* the tier that unlocks opendesign gets a distinct, non-cliché marker:
+     a hairline top rule in accent, not a left strip */
+  .tier.design{border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+  .tier.design::before{
+    content:"";position:absolute;left:22px;right:22px;top:0;height:2px;
+    background:var(--accent);border-radius:0 0 2px 2px
+  }
+
+  .badge-pop{
+    position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+    display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;
+    background:var(--accent);color:#fff;font-size:10.5px;font-weight:600;white-space:nowrap;
+    box-shadow:0 6px 18px -8px color-mix(in srgb,var(--accent) 70%,transparent)
+  }
+  .tier-head h3{font-size:15px;font-weight:600}
+  .tier-head .desc{font-size:11.5px;color:var(--muted);margin-top:3px;min-height:30px}
+  .tier-tag{
+    display:inline-flex;align-items:center;gap:5px;margin-top:9px;padding:3px 8px;
+    border-radius:6px;font-size:10px;font-weight:500;
+    border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
+    background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent)
+  }
+  .tier-tag.grey{border-color:var(--border-strong);background:transparent;color:var(--muted)}
+
+  .price{margin-top:18px}
+  .price .now{display:flex;align-items:baseline;gap:4px}
+  .price .amt{font-size:29px;font-weight:700;letter-spacing:-.02em}
+  .price .per{font-size:12px;color:var(--muted)}
+  .price .was{font-size:12px;color:var(--muted);text-decoration:line-through}
+  .price .note{font-size:10.5px;color:var(--muted);margin-top:5px}
+  .price .save-txt{color:var(--success)}
+
+  .feats{margin-top:18px;flex:1;display:flex;flex-direction:column;gap:9px}
+  .feats li{display:flex;gap:8px;font-size:11.5px;color:var(--muted);line-height:1.5;list-style:none}
+  .feats svg{flex:none;margin-top:2px;color:var(--success)}
+  .feats li.dim{opacity:.55}
+  .feats li.dim svg{color:var(--muted)}
+  .feats b{color:var(--foreground);font-weight:500}
+
+  .cta{margin-top:20px}
+  .cta button{
+    width:100%;appearance:none;font:inherit;font-size:13px;font-weight:500;padding:11px 14px;
+    border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px
+  }
+  .cta .primary{background:var(--accent);color:#fff;border:1px solid var(--accent)}
+  .cta .secondary{background:var(--surface-2);color:var(--foreground);border:1px solid var(--border-strong)}
+  .cta .ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+
+  /* ---------- feature matrix ---------- */
+  .matrix{margin-top:44px}
+  .matrix h2{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .matrix .lead{font-size:12px;color:var(--muted);margin-top:4px;max-width:70ch}
+  .mwrap{margin-top:16px;border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto}
+  table{width:100%;border-collapse:collapse;min-width:760px}
+  th,td{padding:11px 13px;text-align:left;font-size:11.5px;border-bottom:1px solid var(--border)}
+  thead th{
+    background:color-mix(in srgb,var(--surface-2) 70%,transparent);font-weight:600;
+    color:var(--foreground);white-space:nowrap;position:sticky;top:0
+  }
+  tbody tr:last-child td{border-bottom:0}
+  tbody td:first-child{color:var(--foreground);font-weight:500}
+  td.cell{text-align:center;color:var(--muted);white-space:nowrap}
+  .yes{color:var(--success);font-weight:600}
+  .no{color:color-mix(in srgb,var(--muted) 65%,transparent)}
+  .part{color:var(--warning);font-weight:500}
+  /* highlight the opendesign rows */
+  tr.hl td{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+  tr.hl td:first-child{color:var(--accent);font-weight:600}
+  .thdesign{color:var(--accent) !important}
+  .th-pop{position:relative}
+  .th-pop::after{
+    content:"populer";position:absolute;top:4px;right:6px;font-size:8px;font-weight:600;
+    color:var(--accent);letter-spacing:.04em;text-transform:uppercase
+  }
+
+  /* ---------- gate state panel ---------- */
+  .gates{margin-top:40px}
+  .gates h2{font-size:15px;font-weight:600}
+  .gates .lead{font-size:12px;color:var(--muted);margin-top:4px;max-width:70ch}
+  .gaterow{display:grid;gap:10px;margin-top:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .gate{
+    border:1px solid var(--border);border-radius:11px;background:var(--surface);padding:13px 14px
+  }
+  .gate h4{font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:7px}
+  .gate .tierchip{
+    margin-left:auto;font-size:9px;font-family:var(--font-mono);padding:2px 6px;border-radius:5px;
+    border:1px solid var(--border-strong);color:var(--muted)
+  }
+  .gate ul{margin-top:9px;display:flex;flex-direction:column;gap:6px;list-style:none}
+  .gate li{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--muted)}
+  .gate li svg{flex:none}
+  .gate .ok{color:var(--success)}
+  .gate .lock{color:color-mix(in srgb,var(--muted) 70%,transparent)}
+
+  /* ---------- notes ---------- */
+  .notes{margin-top:38px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .note{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:13px 15px}
+  .note h5{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:7px}
+  .note p{font-size:11.5px;color:var(--muted);line-height:1.62}
+  .note code{font-family:var(--font-mono);font-size:10.5px;color:var(--foreground)}
+  .note pre{
+    margin-top:8px;font-family:var(--font-mono);font-size:10px;line-height:1.7;color:var(--muted);
+    background:var(--background);border:1px solid var(--border);border-radius:7px;padding:9px 10px;
+    white-space:pre;overflow-x:auto
+  }
+  .note pre .k{color:var(--accent)}
+  .warnbox{
+    margin-top:38px;border:1px solid color-mix(in srgb,var(--warning) 30%,transparent);
+    border-radius:11px;background:color-mix(in srgb,var(--warning) 7%,transparent);padding:14px 16px;
+    display:flex;gap:11px
+  }
+  .warnbox svg{flex:none;color:var(--warning);margin-top:1px}
+  .warnbox b{color:var(--foreground);font-weight:600}
+  .warnbox p{font-size:11.5px;color:var(--muted);line-height:1.62}
+  .warnbox code{font-family:var(--font-mono);font-size:10.5px;color:var(--foreground)}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">XynnPrototype · langganan · wireframe</p>
+  <h1 class="title">4 tier — opendesign jadi anak tangga, bukan sekat</h1>
+  <p class="sub">
+    Saat ini <code class="mono">DEFAULT_PLANS</code> hanya punya 3 tier (FREE · STARTER · PRO),
+    sementara <code class="mono">PlanType</code> di Prisma sudah punya 4 nilai — tapi
+    <code class="mono">PRO_YEARLY</code> diperlakukan identik dengan PRO. Tier ke-4 di bawah
+    ini ditambahkan <b>di atas</b> PRO, supaya user PRO yang sudah ada tidak turun kelas.
+  </p>
+
+  <div class="switchbar" role="group" aria-label="Kontrol mockup">
+    <span class="lbl">Billing</span>
+    <button class="sw seg" data-cycle="MONTHLY" aria-pressed="true"><span class="dot"></span>Bulanan</button>
+    <button class="sw seg" data-cycle="YEARLY"  aria-pressed="false"><span class="dot"></span>Tahunan</button>
+    <span class="divider"></span>
+    <span class="lbl">Tampilkan gate untuk</span>
+    <button class="sw" data-gate="FREE" aria-pressed="true"><span class="dot"></span>Free</button>
+    <button class="sw" data-gate="STARTER" aria-pressed="false"><span class="dot"></span>Starter</button>
+    <button class="sw" data-gate="PRO" aria-pressed="false"><span class="dot"></span>Pro</button>
+    <button class="sw" data-gate="ENTERPRISE" aria-pressed="false"><span class="dot"></span>Enterprise</button>
+  </div>
+
+  <div class="stage">
+
+    <!-- billing toggle mirrored from pricing-plans.tsx -->
+    <div class="billing">
+      <div class="pill" id="billingPill">
+        <button class="on" data-cycle="MONTHLY">Bulanan</button>
+        <button data-cycle="YEARLY">Tahunan <span class="save">Hemat</span></button>
+      </div>
+    </div>
+
+    <!-- ============ 4 TIER CARDS ============ -->
+    <div class="tiers" id="tiers">
+
+      <!-- FREE -->
+      <div class="tier">
+        <div class="tier-head">
+          <h3>Free</h3>
+          <p class="desc">Coba fitur inti tanpa biaya.</p>
+          <span class="tier-tag grey">Titik masuk</span>
+        </div>
+        <div class="price">
+          <div class="now"><span class="amt">Gratis</span></div>
+          <p class="note">Selamanya. Tanpa kartu kredit.</p>
+        </div>
+        <ul class="feats">
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>1 PRD Draft</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Mindmap Canvas preview</span></li>
+          <li class="dim"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Gudang PRD mode blur</span></li>
+          <li class="dim"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Tanpa CLI Sync</span></li>
+          <li class="dim"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Tanpa Prototype Design</span></li>
+        </ul>
+        <div class="cta"><button class="ghost">Paket Dasar</button></div>
+      </div>
+
+      <!-- STARTER -->
+      <div class="tier">
+        <div class="tier-head">
+          <h3>Starter</h3>
+          <p class="desc">Untuk solo developer &amp; side project.</p>
+          <span class="tier-tag grey">Eksekusi</span>
+        </div>
+        <div class="price">
+          <div class="now"><span class="amt" data-m="Rp 99.000" data-y="Rp 66.583">Rp 99.000</span><span class="per">/bln</span></div>
+          <p class="note" data-m="Ditagih bulanan" data-y="Ditagih Rp 799.000/tahun · hemat 33%">Ditagih bulanan</p>
+        </div>
+        <ul class="feats">
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Maks. <b>5 PRD/bulan</b></span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Gudang PRD akses penuh</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Copy Specs &amp; Export Markdown</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Task Breakdown &amp; Style Guide</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>CLI Sync aktif</span></li>
+          <li class="dim"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Tanpa Prototype Design</span></li>
+        </ul>
+        <div class="cta"><button class="secondary">Pilih Starter</button></div>
+      </div>
+
+      <!-- PRO — opendesign unlocks here -->
+      <div class="tier pop design">
+        <span class="badge-pop">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3v4m0 10v4M5 12H1m22 0h-4"/><circle cx="12" cy="12" r="3.4"/></svg>
+          Paling Populer
+        </span>
+        <div class="tier-head">
+          <h3>Pro</h3>
+          <p class="desc">Untuk tim &amp; produk yang serius.</p>
+          <span class="tier-tag">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18"/></svg>
+            Prototype Design mulai di sini
+          </span>
+        </div>
+        <div class="price">
+          <div class="now"><span class="amt" data-m="Rp 199.000" data-y="Rp 133.250">Rp 199.000</span><span class="per">/bln</span></div>
+          <p class="note" data-m="Ditagih bulanan" data-y="Ditagih Rp 1.599.000/tahun · hemat 33%">Ditagih bulanan</p>
+        </div>
+        <ul class="feats">
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span><b>Unlimited PRD</b></span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Gudang PRD + Fork</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span><b>Prototype Canvas &amp; Theme Editor</b></span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Multi-screen + mobile &amp; desktop</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Priority CLI Sync</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Support prioritas</span></li>
+        </ul>
+        <div class="cta"><button class="primary">Pilih Pro</button></div>
+      </div>
+
+      <!-- ENTERPRISE -->
+      <div class="tier">
+        <div class="tier-head">
+          <h3>Enterprise</h3>
+          <p class="desc">Untuk studio &amp; tim multi-produk.</p>
+          <span class="tier-tag grey">Kolaborasi</span>
+        </div>
+        <div class="price">
+          <div class="now"><span class="amt" data-m="Rp 499.000" data-y="Rp 333.250">Rp 499.000</span><span class="per">/bln</span></div>
+          <p class="note" data-m="Ditagih bulanan · 3 seat termasuk" data-y="Ditagih Rp 3.999.000/tahun · 3 seat">Ditagih bulanan · 3 seat termasuk</p>
+        </div>
+        <ul class="feats">
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Semua fitur Pro</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span><b>3 seat</b> + tambah per seat</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span><b>Library tema</b> tersimpan lintas project</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Kuota AI lebih tinggi</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Kolaborasi workspace</span></li>
+          <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg><span>Onboarding &amp; support khusus</span></li>
+        </ul>
+        <div class="cta"><button class="secondary">Pilih Enterprise</button></div>
+      </div>
+
+    </div>
+
+    <!-- ============ FEATURE MATRIX ============ -->
+    <div class="matrix">
+      <h2>Matriks Hak Akses</h2>
+      <p class="lead">
+        Perluasan dari PRD §3.4. Baris yang ditandai accent adalah fitur baru
+        (Prototype Design) — inilah yang membedakan Pro dari Starter.
+      </p>
+
+      <div class="mwrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fitur / Modul</th>
+              <th style="text-align:center">Free</th>
+              <th style="text-align:center">Starter</th>
+              <th style="text-align:center" class="thdesign th-pop">Pro</th>
+              <th style="text-align:center">Enterprise</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Google OAuth Sign In</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td></tr>
+            <tr><td>Mindmap Canvas preview</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td></tr>
+            <tr><td>Generate Full PRD (.md)</td><td class="cell no">Terkunci · maks 1 draft</td><td class="cell part">Maks 5/bulan</td><td class="cell yes">Unlimited</td><td class="cell yes">Unlimited</td></tr>
+            <tr><td>Gudang PRD (Browse &amp; Search)</td><td class="cell no">Blur mode</td><td class="cell yes">Akses penuh</td><td class="cell yes">Penuh + Fork</td><td class="cell yes">Penuh + Fork</td></tr>
+            <tr><td>Copy Specs &amp; Export Markdown</td><td class="cell no">Terkunci</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td></tr>
+            <tr><td>Task Breakdown &amp; Style Guide</td><td class="cell no">Terkunci</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td></tr>
+            <tr><td>Sync ke VS Code via CLI</td><td class="cell no">Terkunci</td><td class="cell part">Aktif</td><td class="cell yes">Priority</td><td class="cell yes">Priority</td></tr>
+            <tr class="hl"><td>Prototype Design (canvas)</td><td class="cell no">Terkunci</td><td class="cell no">Terkunci</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td></tr>
+            <tr class="hl"><td>Prototype multi-screen + responsive</td><td class="cell no">—</td><td class="cell no">—</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td></tr>
+            <tr class="hl"><td>Theme Editor (font, warna, size)</td><td class="cell no">—</td><td class="cell no">—</td><td class="cell yes">Ya</td><td class="cell yes">Ya</td></tr>
+            <tr class="hl"><td>Simpan tema sendiri (library)</td><td class="cell no">—</td><td class="cell no">—</td><td class="cell no">—</td><td class="cell yes">Ya</td></tr>
+            <tr><td>Jumlah seat</td><td class="cell">1</td><td class="cell">1</td><td class="cell">1</td><td class="cell yes">3 + tambahan</td></tr>
+            <tr><td>Kolaborasi workspace</td><td class="cell no">—</td><td class="cell no">—</td><td class="cell no">—</td><td class="cell yes">Ya</td></tr>
+            <tr><td>Kuota AI / bulan</td><td class="cell">1 PRD</td><td class="cell">5 PRD</td><td class="cell">Fair use</td><td class="cell yes">Ditingkatkan</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ============ GATE PREVIEW ============ -->
+    <div class="gates">
+      <h2>Apa yang terbuka di tier ini</h2>
+      <p class="lead">Pratinjau gate untuk tier terpilih — memakai fungsi yang sudah ada di <code class="mono">lib/access.ts</code>.</p>
+      <div class="gaterow" id="gaterow"></div>
+    </div>
+
+  </div><!-- /stage -->
+
+  <!-- ============ WARNING: migration impact ============ -->
+  <div class="warnbox">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6A2 2 0 0 0 22 18L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+    <div>
+      <p><b>Jangan lupa: menambah tier menyentuh satu sumber kebenaran.</b>
+      <code>lib/access.ts</code> memakai tipe <code>AccessTier = "free" | "starter" | "pro"</code>.
+      Di <code>getAccessTier()</code>, <code>PRO</code>/<code>PRO_YEARLY</code> memetakan ke
+      <code>"pro"</code> dan <code>STARTER</code> ke <code>"starter"</code> — <b>semua nilai lain
+      jatuh ke <code>return "free"</code></b>. Jadi kalau <code>"ENTERPRISE"</code> tidak
+      ditangani di sana, user Enterprise akan diperlakukan sebagai <b>Free</b> dan
+      <b>kehilangan seluruh akses berbayar</b> — bukan sekadar gate tambahannya yang mati.</p>
+    </div>
+  </div>
+
+  <!-- ============ NOTES ============ -->
+  <div class="notes">
+    <div class="note">
+      <h5>Kenapa Enterprise, bukan tier baru di bawah Pro</h5>
+      <p>Menaruh tier baru <b>di bawah</b> Pro berarti menurunkan Pro — semua user Pro yang sudah
+         ada kehilangan fitur diam-diam. Enterprise di atas Pro tidak memutus apa pun, dan
+         <code>prdLimit: -1</code> milik Pro tetap utuh.</p>
+    </div>
+
+    <div class="note">
+      <h5>Yang berubah di kode</h5>
+      <pre><span class="k">// lib/plans.ts</span>
+export type PlanCode =
+  | "FREE" | "STARTER"
+  | "PRO" | "ENTERPRISE";
+
+<span class="k">// lib/access.ts</span>
+export type AccessTier =
+  | "free" | "starter"
+  | "pro" | "enterprise";</pre>
+    </div>
+
+    <div class="note">
+      <h5>Gate baru untuk editor tema</h5>
+      <pre><span class="k">// library tema = pembeda Pro vs Enterprise</span>
+export function canSaveThemes(sub){
+  return getAccessTier(sub)
+    === "enterprise";
+}
+
+<span class="k">// prototype = pembeda Starter vs Pro</span>
+export function canUsePrototype(sub){
+  return getAccessTier(sub)
+    === "pro"
+    || getAccessTier(sub)
+    === "enterprise";
+}</pre>
+    </div>
+
+    <div class="note">
+      <h5>Perhatikan urutan cek</h5>
+      <p><code>canFork()</code> di <code>access.ts:56</code> sekarang
+         <code>getAccessTier(sub) === "pro"</code>. Setelah ada Enterprise, cek ini harus jadi
+         <code>tier === "pro" || tier === "enterprise"</code> — kalau tidak,
+         <b>Enterprise kehilangan Fork</b>. Ini <b>satu-satunya</b> gate di file itu yang
+         membandingkan tier secara literal; perbaikannya harus di titik panggil ini,
+         bukan di <code>getAccessTier()</code>.</p>
+    </div>
+
+    <div class="note">
+      <h5>Dua cara gagal, dua-duanya senyap</h5>
+      <p><b>(1) Fallthrough tier.</b> Lupa menangani <code>ENTERPRISE</code> di
+         <code>getAccessTier()</code> → jatuh ke <code>"free"</code> → user kehilangan
+         <b>semua</b> akses berbayar. Ini merambat otomatis ke gate yang murni memakai
+         <code>isPaid()</code> — <code>canAccessVault</code>, <code>canExport</code>,
+         <code>canUseCli</code>, <code>canGenerateAdvanced</code>, <code>canDownloadMarkdown</code>
+         — dan juga ke <code>canGeneratePrd</code> (yang memakai <code>isPaid()</code>
+         sebagai syarat pertama, lalu cek kuota).
+         Perbaikan di satu fungsi menyembuhkan semuanya.</p>
+      <p style="margin-top:8px"><b>(2) Perbandingan tier literal.</b> Gate yang menulis
+         <code>=== "pro"</code> tidak ikut membaik walau mode (1) sudah dibereskan.
+         Saat ini hanya <code>canFork()</code> yang begitu — jadi harus ditangani
+         terpisah. Kalau nanti ada gate serupa, pola ini akan terulang.</p>
+    </div>
+
+    <div class="note">
+      <h5>Masalah grid 4 kartu</h5>
+      <p><code>pricing-plans.tsx</code> memakai <code>lg:grid-cols-3</code>. Dengan 4 tier
+         hasilnya 3+1 — jelek. Harus jadi <code>lg:grid-cols-4</code> (atau
+         <code>xhtml:grid-cols-2 xl:grid-cols-4</code>) dan padding kartu dikurangi,
+         karena 4 kolom di lebar yang sama membuat teks sempit.</p>
+    </div>
+
+    <div class="note">
+      <h5>Harga: usulan, bukan final</h5>
+      <p>Enterprise Rp 499rb/bln (3 seat) — sekitar 2,5× Pro. Angka ini asumsi dari
+         seat + kolaborasi + library tema. Semua harga diatur admin lewat
+         <code>/admin/plans</code>, jadi tidak perlu deploy untuk mengubahnya.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var cycle = "MONTHLY", gate = "FREE";
+
+  /* ---------- price data (mirror of DEFAULT_PLANS) ---------- */
+  var TIERS = {
+    FREE:       { tier:"free",       vault:false, prd:false, tasks:false, style:false, cli:false, proto:false, themes:false, seats:"1" },
+    STARTER:    { tier:"starter",    vault:true,  prd:true,  tasks:true,  style:true,  cli:true,  proto:false, themes:false, seats:"1" },
+    PRO:        { tier:"pro",        vault:true,  prd:true,  tasks:true,  style:true,  cli:true,  proto:true,  themes:false, seats:"1" },
+    ENTERPRISE: { tier:"enterprise", vault:true,  prd:true,  tasks:true,  style:true,  cli:true,  proto:true,  themes:true,  seats:"3 + tambahan" }
+  };
+
+  var LABELS = [
+    ["prd",    "Generate Full PRD"],
+    ["tasks",  "Task Breakdown"],
+    ["style",  "Style Guide"],
+    ["vault",  "Gudang PRD penuh"],
+    ["cli",    "CLI Sync"],
+    ["proto",  "Prototype Design"],
+    ["themes", "Simpan tema sendiri"]
+  ];
+
+  function renderPrices(){
+    /* price amounts + billing notes */
+    document.querySelectorAll('.price .amt').forEach(function(a){
+      if (a.dataset[cycle === 'MONTHLY' ? 'm' : 'y']) a.textContent = a.dataset[cycle === 'MONTHLY' ? 'm' : 'y'];
+    });
+    document.querySelectorAll('.price .note').forEach(function(n){
+      if (n.dataset[cycle === 'MONTHLY' ? 'm' : 'y']) n.textContent = n.dataset[cycle === 'MONTHLY' ? 'm' : 'y'];
+    });
+    /* switchbar + in-stage toggle pressed state */
+    document.querySelectorAll('[data-cycle]').forEach(function(b){
+      var on = b.dataset.cycle === cycle;
+      if (b.classList.contains('sw')) b.setAttribute('aria-pressed', String(on));
+      else b.classList.toggle('on', on);
+    });
+  }
+
+  function renderGates(){
+    var d = TIERS[gate];
+    var html = '<div class="gate"><h4>'
+      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+      + gate.charAt(0) + gate.slice(1).toLowerCase()
+      + '<span class="tierchip">AccessTier: ' + d.tier + '</span></h4><ul>';
+    LABELS.forEach(function(pair){
+      var key = pair[0], label = pair[1], ok = d[key];
+      html += '<li>'
+        + (ok
+            ? '<svg class="ok" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 12 5 5 9-9"/></svg>'
+            : '<svg class="lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>')
+        + '<span>' + label + '</span></li>';
+    });
+    html += '<li style="margin-top:3px;color:var(--muted)">Seat: ' + d.seats + '</li></ul></div>';
+    document.getElementById('gaterow').innerHTML = html;
+    document.querySelectorAll('[data-gate]').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.dataset.gate === gate));
+    });
+  }
+
+  document.querySelectorAll('[data-cycle]').forEach(function(b){
+    b.addEventListener('click', function(){ cycle = b.dataset.cycle; renderPrices(); });
+  });
+  document.querySelectorAll('[data-gate]').forEach(function(b){
+    b.addEventListener('click', function(){ gate = b.dataset.gate; renderGates(); });
+  });
+
+  renderPrices();
+  renderGates();
+})();
+</script>
+</body>
+</html>

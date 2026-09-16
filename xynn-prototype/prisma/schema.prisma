@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum PlanType {
+  FREE
+  STARTER
+  PRO
+  PRO_YEARLY
+  ENTERPRISE
+}
+
+enum SubStatus {
+  INACTIVE
+  ACTIVE
+  CANCELLED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model Plan {
+  id              String   @id @default(uuid())
+  code            String   @unique // 'FREE' | 'STARTER' | 'PRO' (map ke PlanType)
+  name            String
+  description     String?
+  priceMonthly    Int      @default(0) // IDR
+  priceYearly     Int      @default(0) // IDR
+  discountPercent Int      @default(0) // diskon tambahan dari admin
+  prdLimit        Int      @default(1) // -1 = unlimited
+  prototypeLimit  Int      @default(0) // kuota generate Prototype Design/bln (-1 = unlimited)
+  features        String[] @default([])
+  isActive        Boolean  @default(true)
+  isPopular       Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String?
+  avatarUrl     String?
+  role          Role           @default(USER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  subscription  Subscription?
+  workspaces    Workspace[]
+  apiKeys       ApiKey[]
+  transactions  Transaction[]
+}
+
+model Subscription {
+  id                  String       @id @default(uuid())
+  userId              String       @unique
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planType            PlanType     @default(FREE)
+  status              SubStatus    @default(INACTIVE)
+  billingCycle        BillingCycle @default(MONTHLY)
+  prdLimit            Int          @default(1)
+  chatLimit           Int          @default(0)
+  prdUsedThisMonth    Int          @default(0)
+  chatUsedThisMonth   Int          @default(0)
+  // Kuota generate Prototype Design (-1 = unlimited).
+  // HTML jauh lebih mahal daripada Markdown, jadi kuotanya terpisah.
+  prototypeLimit       Int         @default(0)
+  prototypeUsedThisMonth Int       @default(0)
+  startedAt           DateTime?
+  validUntil          DateTime?
+  updatedAt           DateTime     @updatedAt
+}
+
+model Workspace {
+  id                  String       @id @default(uuid())
+  userId              String
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title               String
+  description         String?
+  locale              String       @default("id") // 'id' | 'en' — bahasa output AI
+  techStack           Json
+  techPreferences     Json?        // { mode: 'ai'|'manual', frontend, backend, database, deployment }
+  mindmapJson         Json
+  fullPrdMd           String?
+  tasksJson           Json?        // Task breakdown dari PRD
+  styleGuideMd        String?      // Style guide (design system)
+
+  // Prototype Design (PRO) — HTML mandiri + struktur screen + token tema.
+  prototypeHtml       String?      // HTML/CSS/JS self-contained, dirender di iframe
+  prototypeJson       Json?        // { screens: [{id,label,order}], generatedAt }
+  themeTokensJson     Json?        // token tema tersimpan (warna, tipografi, bentuk)
+
+  isPublic            Boolean      @default(false)
+  isAnonymous         Boolean      @default(false)
+  shareSlug           String?      @unique
+  category            String?
+
+  forkedFromId        String?
+  originalWorkspace   Workspace?   @relation("WorkspaceForks", fields: [forkedFromId], references: [id], onDelete: SetNull)
+  forks               Workspace[]  @relation("WorkspaceForks")
+  viewsCount          Int          @default(0)
+  forksCount          Int          @default(0)
+
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  keyHash     String    @unique
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model PaymentConfig {
+  id                  String   @id @default(uuid())
+  provider            String
+  isActive            Boolean  @default(false)
+  isProduction        Boolean  @default(false)
+  merchantId          String?
+  clientKey           String
+  serverKeyEncrypted  String   @db.Text
+  webhookSecret       String?
+  updatedAt           DateTime @updatedAt
+}
+
+model Voucher {
+  id              String    @id @default(uuid())
+  code            String    @unique
+  discountPercent Int?
+  discountAmount  Int?
+  validUntil      DateTime?
+  maxUses         Int       @default(100)
+  usedCount       Int       @default(0)
+  createdAt       DateTime  @default(now())
+}
+
+model Transaction {
+  id               String       @id @default(uuid())
+  userId           String
+  user             User         @relation(fields: [userId], references: [id])
+  amount           Int
+  planType         PlanType
+  billingCycle     BillingCycle
+  status           String
+  paymentGatewayId String?
+  createdAt        DateTime     @default(now())
+}
+
+model AiConfig {
+  id            String   @id @default(uuid())
+  mindmapModel  String   @default("OpenCodeCombo")
+  prdModel      String   @default("OpenCodeCombo")
+  systemPrompt  String   @default("You are an expert product architect.")
+  updatedAt     DateTime @updatedAt
+}
+
+model AiUsage {
+  id               String   @id @default(uuid())
+  userId           String?
+  kind             String   // 'mindmap' | 'prd' | 'questions'
+  model            String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  costUsd          Float    @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([kind])
+}
