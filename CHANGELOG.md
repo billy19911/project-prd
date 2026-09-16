@@ -30,6 +30,36 @@ timestamp migrasi Prisma).
 
 ---
 
+## [v1.2.1] — README dipindah & disinkronkan (16 Sep 2026)
+
+### Changed
+
+- **`README.md` dipindah dari `xynn-prototype/` ke akar repositori.**
+  Alasannya: README menjelaskan **seluruh proyek** (termasuk `opendesign/`,
+  PRD, dan changelog), bukan hanya aplikasi Next.js. Dipindah dengan
+  `git mv` sehingga riwayat file terjaga, dan dua link relatif
+  (`../CHANGELOG.md`, `../XynnPROtotype.md`) diperbaiki menjadi `./`.
+- **README disinkronkan dengan keadaan nyata.** Dokumen ini ditulis sebelum
+  Fase 1 & 2 dikerjakan, sehingga banyak klaim sudah basi. Yang diperbaiki:
+  - Prototype Design: dari "*Direncanakan*" → **selesai (PRO ke atas)**.
+  - Tier: dari "Saat ini 3 tier" → **4 tier**, lengkap dengan kolom
+    `prototypeLimit` per tier.
+  - Endpoint: `32` → **33**; `/api/ai/prototype` dari "*Direncanakan*"
+    → **berfungsi**, dengan catatan gate 402/429/400.
+  - Uji: `38` → **58**, dan menyebut `theme.test.mjs`.
+  - Migrasi: `5` → **10**.
+  - Struktur proyek: `chat/` kini "rangka UI" (bukan placeholder),
+    ditambah `prototype/`; angka komponen/lib/enum dikoreksi.
+  - Bagian `computeStepAvailability`: dari "ketidak-konsistenan yang
+    diketahui" → **"Diperbaiki"** (memang sudah diperbaiki di kode).
+  - Daftar fungsi gate ditambah `isProOrAbove`, `canUsePrototype`,
+    `canGeneratePrototype`, `remainingPrototypeQuota`, `canSaveThemes`.
+
+**Catatan:** semua angka di README diverifikasi ulang terhadap kode
+(`Get-ChildItem` / `Select-String`), bukan diperkirakan.
+
+---
+
 ## [v1.2.0] — Prototype Design / opendesign (16 Sep 2026)
 
 **Fase 2 selesai & terverifikasi end-to-end.** Pengguna PRO kini bisa

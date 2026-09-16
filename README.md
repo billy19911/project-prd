@@ -2,7 +2,7 @@
 
 > Platform SaaS **AI-Driven PRD & Architecture Generator** — menjembatani fase *ideation* dengan fase eksekusi koding di IDE (VS Code, Cursor, Windsurf).
 
-XynnPrototype memangkas waktu *planning* aplikasi dari hitungan hari menjadi hitungan menit. Anda menuliskan sebuah ide, dan sistem menghasilkan **spesifikasi teknis yang siap dikoding** — Mindmap, PRD lengkap, Task Breakdown, Style Guide, dan (direncanakan) **Prototype Design** — lalu menyinkronkannya langsung ke folder proyek lokal lewat CLI.
+XynnPrototype memangkas waktu *planning* aplikasi dari hitungan hari menjadi hitungan menit. Anda menuliskan sebuah ide, dan sistem menghasilkan **spesifikasi teknis yang siap dikoding** - Mindmap, PRD lengkap, Task Breakdown, Style Guide, dan **Prototype Design** (HTML multi-screen yang bisa dilihat & diubah temanya) - lalu menyinkronkannya langsung ke folder proyek lokal lewat CLI.
 
 ---
 
@@ -40,7 +40,7 @@ XynnPrototype memangkas waktu *planning* aplikasi dari hitungan hari menjadi hit
 | **Style Guide** | Design system (token warna, tipografi) yang konsisten dengan Task Breakdown. |
 | **Gudang PRD (Vault)** | Jelajahi PRD publik komunitas; *opt-in* privasi; mode *blur* untuk Free; fork untuk Pro. |
 | **CLI Sync** | Tarik `PRD.md` + `.cursorrules` langsung ke folder proyek lokal. |
-| **Prototype Design** | 🚧 *Direncanakan* — generate HTML/CSS/JS multi-screen dari PRD + Style Guide, dengan Theme Editor. |
+| **Prototype Design** | Generate HTML/CSS/JS multi-screen dari PRD + Style Guide, dengan Theme Editor. **PRO ke atas**, kuota 20/bulan. |
 | **Admin Panel** | AI cost analytics, system prompt sandbox, manajemen plan/payment/user/voucher. |
 
 ---
@@ -63,7 +63,7 @@ XynnPrototype memangkas waktu *planning* aplikasi dari hitungan hari menjadi hit
     └────────────────────────────────┬───────────────────────────────────┘
                                      ▼
               ┌──────────────────────────────────────────┐
-              │  6. Prototype Design  🚧 direncanakan    │
+              |  6. Prototype Design  (sudah ada)        |
               │     (PRO gate) — canvas + theme editor   │
               └──────────────────┬───────────────────────┘
                                  ▼
@@ -76,7 +76,7 @@ XynnPrototype memangkas waktu *planning* aplikasi dari hitungan hari menjadi hit
 **Prasyarat berurutan (di-enforce di server):**
 
 ```
-Mindmap  →  PRD  →  Task Breakdown  →  Style Guide  →  Prototype 🚧
+Mindmap  ->  PRD  ->  Task Breakdown  ->  Style Guide  ->  Prototype
 ```
 
 `/api/ai/styleguide` menolak bila `tasksJson` belum ada; `/api/ai/tasks` menolak bila `fullPrdMd` belum ada.
@@ -105,9 +105,11 @@ Mindmap  →  PRD  →  Task Breakdown  →  Style Guide  →  Prototype 🚧
 ## Struktur Proyek
 
 ```
-PRD/                              # akar repositori
+project-prd/                      # akar repositori
+├── README.md                     # ← dokumen yang sedang Anda baca
 ├── XynnPROtotype.md              # PRD (Product Requirement Document)
 ├── CHANGELOG.md                  # Riwayat perubahan
+├── RENCANA-IMPLEMENTASI.md       # Rencana & progres kerja
 ├── _*.mjs                        # Skrip uji manual (login, gate, pay, dll.)
 ├── opendesign/                   # Artefak desain (mockup HTML + design system)
 │   ├── index.html                # Hub semua artefak
@@ -118,31 +120,32 @@ PRD/                              # akar repositori
 │       ├── pricing/
 │       └── prototype-canvas/
 └── xynn-prototype/               # Aplikasi Next.js
-    ├── README.md                 # ← dokumen yang sedang Anda baca
     ├── app/
     │   ├── (auth)/login/         # Single-button Google OAuth
     │   ├── (main)/               # Area terautentikasi
     │   │   ├── dashboard/        # Daftar workspace
     │   │   ├── projects/         # Buat project baru
     │   │   ├── new-project/      # Wizard 5 langkah
-    │   │   ├── project/[id]/     # Workspace + tab (Mindmap·PRD·Task·Style)
-    │   │   ├── chat/             # 🚧 Chat Prototype (saat ini placeholder)
+    │   │   ├── project/[id]/     # Workspace + tab (Mindmap·PRD·Task·Style·Prototype)
+    │   │   ├── prototype/        # Galeri prototype lintas project
+    │   │   ├── chat/             # 🚧 Chat Prototype (rangka UI, belum terhubung AI)
     │   │   ├── vault/            # Gudang PRD
     │   │   └── settings/         # plan · profile · developer
     │   ├── (public)/prd/[shareSlug]/  # Halaman PRD publik 3 kolom
     │   ├── (admin)/admin/        # Dashboard admin (RBAC)
-    │   ├── api/                  # 32 endpoint (lihat Referensi API)
+    │   ├── api/                  # 33 endpoint (lihat Referensi API)
     │   └── post-login/           # Router setelah login (berdasar role)
     ├── bin/cli.js                # CLI executable (`xynn`)
-    ├── components/               # 26 komponen
+    ├── components/               # 28 komponen
     │   └── ui/                   # Primitif: Button, Badge, Card, Input, dll.
-    ├── lib/                      # 14 modul logika inti
+    ├── lib/                      # 15 modul logika inti
     ├── prisma/
     │   ├── schema.prisma         # 10 model, 4 enum
-    │   ├── migrations/           # 5 migrasi
-    │   └── seed-plans.mts        # Seeding plan
+    │   ├── migrations/           # 10 migrasi
+    │   └── seed-plans.mts        # Seeding plan (4 tier)
     ├── tests/
-    │   └── access.test.mjs       # 38 uji gate hak akses (node:test)
+    │   ├── access.test.mjs       # Uji gate hak akses
+    │   └── theme.test.mjs        # Uji sanitasi token tema
     └── types/next-auth.d.ts      # Augmentasi tipe sesi
 ```
 
@@ -182,7 +185,7 @@ openssl rand -hex 32
 ### 4. Siapkan database
 
 ```bash
-npx prisma migrate deploy     # terapkan 5 migrasi
+npx prisma migrate deploy     # terapkan 10 migrasi
 npx prisma generate           # buat Prisma Client
 node --experimental-strip-types prisma/seed-plans.mts   # isi tabel Plan
 ```
@@ -234,7 +237,7 @@ koma untuk beberapa admin), lalu **login ulang**. Akses `/admin`.
 
 ### Pengujian
 
-`npm test` menjalankan 38 uji untuk `lib/access.ts` memakai **`node:test` bawaan
+`npm test` menjalankan 58 uji (`access.test.mjs` + `theme.test.mjs`) memakai **`node:test` bawaan
 Node** (tanpa dependency tambahan). Cakupannya:
 
 - Aktivasi langganan (status, kedaluwarsa, tanggal tidak valid).
@@ -340,16 +343,27 @@ dibatalkan.
 | Fungsi | Berlaku untuk |
 | :--- | :--- |
 | `isSubscriptionActive()` | Status aktif & belum kedaluwarsa. |
-| `getAccessTier()` | `"free"` \| `"starter"` \| `"pro"`. |
+| `getAccessTier()` | `"free"` \| `"starter"` \| `"pro"` \| `"enterprise"`. |
 | `isPaid()` | Semua tier berbayar. |
+| `isProOrAbove()` | **Pro atau Enterprise** — dipakai agar tidak perlu perbandingan tier literal. |
 | `canAccessVault()` | Starter ke atas. |
-| `canFork()` | **Pro saja** (perbandingan tier literal). |
+| `canFork()` | Pro ke atas (memakai `isProOrAbove()`). |
 | `canExport()` | Starter ke atas. |
 | `canUseCli()` | Starter ke atas. |
 | `canGeneratePrd()` | Berbayar + cek kuota (`prdLimit`, `-1` = unlimited). |
 | `canGenerateAdvanced()` | Starter ke atas (Task & Style Guide). |
 | `canDownloadMarkdown()` | Starter ke atas. |
+| `canUsePrototype()` | **Pro ke atas** — paket mendukung Prototype Design. |
+| `canGeneratePrototype()` | Pro ke atas **dan** kuota bulan ini masih ada. |
+| `remainingPrototypeQuota()` | Sisa kuota prototype; `null` = unlimited. |
+| `canSaveThemes()` | **Enterprise saja** — library tema tersimpan. |
 | `computeStepAvailability()` | Menghitung keterbukaan `mindmap`/`prd`/`tasks`/`style`. |
+
+> **Dua gate prototype berbeda peran:** `canUsePrototype()` menjawab
+> "*apakah paketnya mendukung*", sedangkan `canGeneratePrototype()` menjawab
+> "*apakah masih boleh generate sekarang*" (memperhitungkan kuota). Server
+> memakai keduanya untuk membedakan **402** (paket tidak mendukung) dari
+> **429** (kuota habis) — dua pesan yang berbeda bagi pengguna.
 
 ### Perilaku di server
 
@@ -374,45 +388,51 @@ Bila menambahkan tier (mis. `ENTERPRISE`), ada dua cara rusak yang
 Keduanya **wajib ditutup dengan test** — dan sekarang sudah, di
 `tests/access.test.mjs` (jalankan `npm test`). Lihat PRD §3.6.
 
-### ⚠️ Ketidak-konsistenan yang diketahui: `computeStepAvailability`
+### ✅ Diperbaiki: `computeStepAvailability`
 
-`styleGuide/route.ts` (baris 48–51) **mensyaratkan** `tasksJson` lebih dulu,
-tetapi `computeStepAvailability()` menghitung `style: paid && hasPrd` —
-mengabaikan `hasTasks`. Helper ini akan melaporkan langkah `style` **terbuka**
-padahal server masih menolaknya dengan 400.
+Dahulu helper ini menghitung `style: paid && hasPrd`, padahal
+`styleGuide/route.ts` **mensyaratkan** `tasksJson` lebih dulu. Akibatnya
+helper melaporkan langkah `style` **terbuka** padahal server menolaknya
+dengan 400.
 
-Saat ini **belum berbahaya**: fungsi ini belum dipanggil di UI mana pun.
-Tetapi bila nanti dipakai untuk menampilkan/mengunci langkah, hasilnya akan
-berbeda dari server. Perilaku saat ini dikunci oleh uji
-`"DOKUMENTASI: style saat ini mengikuti hasPrd…"` agar perubahan tidak
-terjadi diam-diam. Perbaikan yang benar: ubah menjadi
-`style: paid && opts.hasTasks`.
+Sudah diperbaiki menjadi `style: paid && !!opts.hasTasks` (dengan `!!`
+karena `hasTasks` opsional — tanpa itu TypeScript menolak `boolean | undefined`).
+Dikunci oleh uji `"style mengikuti hasTasks (sesuai syarat server)"`.
 
 ---
 
 ## Tier Langganan
 
-**Saat ini (3 tier, di `lib/plans.ts`):**
+**Saat ini 4 tier** (`lib/plans.ts` + tabel `Plan` di database):
 
-| Tier | Bulan | Tahun | `prdLimit` |
-| :--- | ---: | ---: | ---: |
-| Free | Rp 0 | Rp 0 | 1 |
-| Starter | Rp 99.000 | Rp 799.000 | 5 |
-| Pro | Rp 199.000 | Rp 1.599.000 | −1 (unlimited) |
+| Tier | Bulan | Tahun | `prdLimit` | `prototypeLimit` |
+| :--- | ---: | ---: | ---: | ---: |
+| Free | Rp 0 | Rp 0 | 1 | 0 |
+| Starter | Rp 99.000 | Rp 799.000 | 5 | 0 |
+| **Pro** | Rp 199.000 | Rp 1.599.000 | −1 (unlimited) | **20/bulan** |
+| **Enterprise** | Rp 499.000 | Rp 3.999.000 | −1 (unlimited) | −1 (unlimited) |
 
-> `PRO_YEARLY` adalah varian **siklus billing**, bukan tier tersendiri —
-> ia diperlakukan identik dengan `PRO` di `access.ts`.
+**Pembeda antar tier:**
+- **Free → Starter:** bisa *mengeksekusi* (export, CLI, Task, Style Guide).
+- **Starter → Pro:** bisa *melihat design yang jadi* — Prototype Design + Theme Editor, PRD unlimited, Fork dari Gudang.
+- **Pro → Enterprise:** bisa *bekerja sebagai tim* — library tema tersimpan, 3 seat, kolaborasi, kuota AI lebih tinggi.
 
-**Direncanakan (4 tier):** `FREE → STARTER → PRO → ENTERPRISE`, dengan
-**Prototype Design diaktifkan di PRO**. Enterprise (di *atas* Pro) untuk
-kolaborasi tim, seat, dan library tema tersimpan. Harga diatur admin
-lewat `/admin/plans` tanpa perlu deploy. Rincian lengkap di PRD §3.6.
+> `PRO_YEARLY` adalah varian **siklus billing**, bukan tier tersendiri — ia
+> diperlakukan identik dengan `PRO` di `lib/access.ts`.
+>
+> Enterprise diletakkan **di atas** Pro agar pengguna Pro yang sudah ada tidak
+> kehilangan fitur. Harga & kuota diatur admin lewat `/admin/plans` tanpa
+> perlu deploy. Rincian lengkap di PRD §3.6.
+>
+> ⚠️ **Menambah tier menyentuh `lib/access.ts`** — ada dua mode kegagalan
+> senyap (fallthrough tier & perbandingan tier literal). Lihat
+> [Gating & Hak Akses](#gating--hak-akses).
 
 ---
 
 ## Referensi API
 
-32 endpoint di bawah `app/api/`. Endpoint terproteksi memakai sesi
+33 endpoint di bawah `app/api/`. Endpoint terproteksi memakai sesi
 NextAuth (401 bila anonim); **gate berbayar** mengembalikan **402** —
 kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 (lihat catatan di tabel di bawah).
@@ -433,7 +453,11 @@ kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 | `POST /api/ai/tasks` | Berbayar | Task Breakdown (butuh `fullPrdMd`). **402** bila Free. |
 | `POST /api/ai/styleguide` | Berbayar | Style Guide (butuh `tasksJson`). **402** bila Free. |
 | `POST /api/ai/full-prd` | Berbayar | PRD lengkap. **402** bila Free. |
-| `POST /api/ai/prototype` | **Pro** 🚧 | *Direncanakan* — HTML prototype. |
+| `POST /api/ai/prototype` | **Pro** | Prototype HTML dari PRD + Style Guide. **402** non-Pro · **429** kuota habis · **400** prasyarat belum ada. |
+
+> **Prasyarat `prototype`:** workspace harus sudah punya `fullPrdMd` **dan**
+> `styleGuideMd`. Kuota terpisah dari PRD: PRO 20/bulan, ENTERPRISE unlimited
+> (`Plan.prototypeLimit`, `-1` = unlimited).
 
 > ⚠️ **Catatan gate:** `questions` dan `techstack` **belum** dipaywall — keduanya
 > hanya memeriksa sesi (401) dan validasi input (400), tanpa `402`
@@ -713,9 +737,9 @@ Proyek privat (`"private": true`), versi `0.1.0`.
 | Pembayaran (Midtrans/Xendit) | ✅ Selesai |
 | Admin Panel | ✅ Selesai |
 | CLI Sync | ✅ Selesai |
-| **Prototype Design + Theme Editor** | 🚧 **Didesain, belum diimplementasikan** |
-| **Langganan 4 tier (Enterprise)** | 🚧 **Didesain, belum diimplementasikan** |
-| Chat Prototype (`/chat`) | 🚧 Placeholder |
+| **Prototype Design + Theme Editor** | Selesai (PRO ke atas) |
+| **Langganan 4 tier (Enterprise)** | Selesai |
+| Chat Prototype (`/chat`) | Rangka UI - belum terhubung AI |
 
-Lihat [`../CHANGELOG.md`](../CHANGELOG.md) untuk riwayat lengkap dan
-[`../XynnPROtotype.md`](../XynnPROtotype.md) untuk spesifikasi produk.
+Lihat [`CHANGELOG.md`](./CHANGELOG.md) untuk riwayat lengkap dan
+[`XynnPROtotype.md`](./XynnPROtotype.md) untuk spesifikasi produk.
