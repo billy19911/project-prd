@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Palette, RotateCcw, Save, ChevronRight } from "lucide-react";
+import { Palette, RotateCcw, Save, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DEFAULT_THEME, type ThemeTokens } from "@/lib/theme";
 
@@ -41,23 +41,43 @@ export function ThemeEditor({
   value,
   onChange,
   onSave,
-  canSave = false,
+  canSaveLibrary = false,
   className,
 }: {
   value: ThemeTokens;
   onChange: (next: ThemeTokens) => void;
-  onSave?: (next: ThemeTokens) => void;
-  canSave?: boolean;
+  onSave?: (next: ThemeTokens) => void | Promise<void>;
+  /**
+   * Apakah pengguna boleh menyimpan tema sebagai LIBRARY lintas-project
+   * (fitur ENTERPRISE). Menyimpan tema untuk project ini sendiri SELALU
+   * boleh untuk PRO ke atas, sehingga tombol tidak dikunci oleh flag ini.
+   */
+  canSaveLibrary?: boolean;
   className?: string;
 }) {
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({
     color: true,
     type: true,
     shape: true,
   });
 
-  const set = <K extends keyof ThemeTokens>(key: K, v: ThemeTokens[K]) =>
+  const set = <K extends keyof ThemeTokens>(key: K, v: ThemeTokens[K]) => {
     onChange({ ...value, [key]: v });
+    setSaved(false);
+  };
+
+  const handleSave = async () => {
+    if (!onSave || saving) return;
+    setSaving(true);
+    try {
+      await onSave(value);
+      setSaved(true);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const group = (id: string) => (
     <button
@@ -185,19 +205,30 @@ export function ThemeEditor({
 
       <button
         type="button"
-        disabled={!canSave || !onSave}
-        title={canSave ? undefined : "Library tema tersimpan khusus paket ENTERPRISE"}
-        onClick={() => onSave?.(value)}
+        disabled={!onSave || saving}
+        title={
+          canSaveLibrary
+            ? undefined
+            : "Tersimpan di project ini. Library tema lintas-project khusus ENTERPRISE."
+        }
+        onClick={handleSave}
         className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <Save className="h-3.5 w-3.5" />
-        Simpan tema{canSave ? "" : " (Enterprise)"}
+        {saving ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Save className="h-3.5 w-3.5" />
+        )}
+        {saving ? "Menyimpan..." : saved ? "Tersimpan" : "Simpan tema"}
       </button>
 
-      <p className="text-[10px] leading-relaxed text-muted">
-        Perubahan disimpan sebagai token CSS, bukan pixel — aman di-export dan
-        dipakai ulang.
-      </p>
+      {!canSaveLibrary && (
+        <p className="text-[10px] leading-relaxed text-muted">
+          Tema tersimpan di project ini. Menyimpan tema sebagai{" "}
+          <b className="text-foreground">library lintas-project</b> tersedia di
+          paket ENTERPRISE.
+        </p>
+      )}
     </aside>
   );
 }

@@ -30,6 +30,65 @@ timestamp migrasi Prisma).
 
 ---
 
+## [v1.3.0] — Perbaikan Celah Fungsional Prototype (16 Sep 2026)
+
+Menutup tiga celah yang ditemukan setelah Fase 2 selesai. Ketiganya adalah
+**bug yang merusak pekerjaan pengguna** atau **penjaga biaya AI**.
+
+### Fixed
+
+- **Tema hilang saat Regenerate.** `/api/ai/prototype` tidak membaca maupun
+  meneruskan `themeTokensJson` ke AI, sehingga setiap kali menekan
+  *Regenerate*, prototype baru dihasilkan dengan **warna default** — seluruh
+  penyesuaian tema pengguna terhapus tanpa peringatan. Diperbaiki dengan
+  menyertakan tema ke prompt melalui blok **THEME OVERRIDE** yang memaksa AI
+  memakai nilai persis (`EXACT values`, `Do NOT invent other colors`).
+  Tema disanitasi dulu sebelum masuk prompt karena datanya dari DB.
+- **PRO tidak bisa menyimpan tema sama sekali.** Tombol "Simpan tema" memakai
+  `disabled={!canSave}` dengan `canSave` = `canSaveThemes` (**ENTERPRISE
+  saja**). Akibatnya pengguna PRO tidak dapat menyimpan tema — dan
+  `themeTokensJson` tetap kosong di seluruh database (terverifikasi: 0 baris).
+  Ini salah memisahkan dua hal: menyimpan tema **untuk project ini** adalah
+  hak PRO, sedangkan **library lintas-project** barulah fitur ENTERPRISE.
+  Diperbaiki: tombol selalu aktif, `canSaveThemes` hanya menandai bahwa
+  library lintas-project butuh ENTERPRISE.
+- **Test kosong untuk `canGeneratePrototype` & `remainingPrototypeQuota`.**
+  Dua fungsi ini menjaga kuota prototype (PRO 20/bulan) — penjaga biaya AI.
+  Sebelumnya tidak ada test sama sekali. Ditambahkan 10 test, termasuk kasus
+  `prototypeLimit` tidak ada (harus **terkunci**, bukan dianggap unlimited)
+  dan pemakaian melebihi limit (sisa tidak boleh negatif).
+
+### Changed
+
+- **Prompt builder dipindah ke `lib/prototype-prompt.ts`.** `lib/ai.ts`
+  mengimpor `@/lib/i18n`, sehingga `node:test` tidak dapat memuatnya (alias
+  `@/` tidak terselesaikan). Modul baru ini bebas dependensi — direktif bahasa
+  diterima sebagai parameter — sehingga prompt dapat diuji. `lib/ai.ts` tetap
+  mengekspor ulang agar pemanggil lama tidak rusak.
+- `ThemeEditor`: prop `canSave` → `canSaveLibrary` (lebih jelas maksudnya),
+  plus indikator `saving`/`saved` dan pesan yang menjelaskan bedanya.
+- `tests/access.test.mjs`: 58 → 68 test. `tests/prompt.test.mjs` baru: 6 test.
+
+### Verification
+
+| Pemeriksaan | Hasil |
+| :--- | :--- |
+| `npm test` | **74 lulus**, 0 gagal (dari 58) |
+| `npm run build` | **Exit 0** |
+| `npx eslint` | 0 error |
+| Simpan tema sebagai PRO | **200** (tadinya tombol disabled) |
+| Tema tersimpan di DB | ✅ nilai tepat (warna, font, size, radius) |
+| Sanitasi via API | payload `<script>` → `#000000`/`Geist`, tanpa break-out |
+| `themeTokensJson` di DB | dari **0** → **1** baris |
+
+**Catatan proses:** build menangkap dua kesalahan yang aku buat saat
+memindahkan prompt — definisi tipe (`PrototypeResult`, `PrototypeScreen`,
+`extractHtmlDocument`, `extractScreens`) ikut terhapus, dan `fallbackScreens`
+menjadi duplikat. Keduanya lolos dari test tapi gagal di TypeScript.
+Pelajaran: **selalu jalankan build**, bukan hanya test.
+
+---
+
 ## [v1.2.1] — README dipindah & disinkronkan (16 Sep 2026)
 
 ### Changed

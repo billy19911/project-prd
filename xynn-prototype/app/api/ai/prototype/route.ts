@@ -10,6 +10,7 @@ import {
 } from "@/lib/access";
 import { NextResponse } from "next/server";
 import { normalizeTechStack } from "@/lib/utils";
+import { sanitizeThemeTokens } from "@/lib/theme";
 
 /**
  * Generate Prototype Design (HTML) dari PRD + Style Guide. Khusus PRO ke atas.
@@ -58,6 +59,9 @@ export async function POST(req: Request) {
       styleGuideMd: true,
       techStack: true,
       locale: true,
+      // Tema tersimpan ikut dibaca agar regenerate TIDAK mengembalikan
+      // warna/font ke default dan menghapus penyesuaian pengguna.
+      themeTokensJson: true,
     },
   });
 
@@ -86,7 +90,12 @@ export async function POST(req: Request) {
     normalizeTechStack(workspace.techStack),
     model,
     systemPrompt,
-    (workspace.locale as "id" | "en") || "id"
+    (workspace.locale as "id" | "en") || "id",
+    // Teruskan tema tersimpan (bila ada) agar regenerate tidak menghapus
+    // penyesuaian pengguna. Disanitasi dulu karena datanya dari DB.
+    workspace.themeTokensJson
+      ? sanitizeThemeTokens(workspace.themeTokensJson)
+      : null
   );
 
   await prisma.workspace.update({

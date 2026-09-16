@@ -138,14 +138,15 @@ project-prd/                      # akar repositori
     ├── bin/cli.js                # CLI executable (`xynn`)
     ├── components/               # 28 komponen
     │   └── ui/                   # Primitif: Button, Badge, Card, Input, dll.
-    ├── lib/                      # 15 modul logika inti
+    ├── lib/                      # 16 modul logika inti
     ├── prisma/
     │   ├── schema.prisma         # 10 model, 4 enum
     │   ├── migrations/           # 10 migrasi
     │   └── seed-plans.mts        # Seeding plan (4 tier)
     ├── tests/
-    │   ├── access.test.mjs       # Uji gate hak akses
-    │   └── theme.test.mjs        # Uji sanitasi token tema
+    │   ├── access.test.mjs       # Uji gate hak akses & kuota
+    │   ├── theme.test.mjs        # Uji sanitasi token tema
+    │   └── prompt.test.mjs       # Uji prompt generator prototype
     └── types/next-auth.d.ts      # Augmentasi tipe sesi
 ```
 
@@ -237,7 +238,7 @@ koma untuk beberapa admin), lalu **login ulang**. Akses `/admin`.
 
 ### Pengujian
 
-`npm test` menjalankan 58 uji (`access.test.mjs` + `theme.test.mjs`) memakai **`node:test` bawaan
+`npm test` menjalankan 74 uji (`access` · `theme` · `prompt`) memakai **`node:test` bawaan
 Node** (tanpa dependency tambahan). Cakupannya:
 
 - Aktivasi langganan (status, kedaluwarsa, tanggal tidak valid).

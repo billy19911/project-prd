@@ -33,6 +33,8 @@ import {
   canDownloadMarkdown,
   canUsePrototype,
   canSaveThemes,
+  canGeneratePrototype,
+  remainingPrototypeQuota,
   computeStepAvailability,
 } from "../lib/access.ts";
 
@@ -415,7 +417,11 @@ describe("canUsePrototype (pembeda Starter vs Pro)", () => {
   });
 });
 
-describe("canSaveThemes (pembeda Pro vs Enterprise)", () => {
+/* ------------------------------------------------------------------ */
+/* canSaveThemes (pembeda Pro vs Enterprise)                           */
+/* ------------------------------------------------------------------ */
+
+describe("canSaveThemes (library tema lintas-project)", () => {
   test("hanya ENTERPRISE yang boleh", () => {
     assert.equal(canSaveThemes(null), false);
     assert.equal(canSaveThemes(sub({ planType: "FREE" })), false);
@@ -427,6 +433,101 @@ describe("canSaveThemes (pembeda Pro vs Enterprise)", () => {
 
   test("kedaluwarsa -> tidak boleh", () => {
     assert.equal(canSaveThemes(sub({ planType: "ENTERPRISE", validUntil: PAST })), false);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* canGeneratePrototype & remainingPrototypeQuota (penjaga biaya AI)    */
+/* ------------------------------------------------------------------ */
+
+describe("canGeneratePrototype (kuota prototype)", () => {
+  const proto = (over = {}) =>
+    sub({ planType: "PRO", prototypeLimit: 20, prototypeUsedThisMonth: 0, ...over });
+
+  test("non-Pro -> false walau kuota tersedia", () => {
+    assert.equal(canGeneratePrototype(null), false);
+    assert.equal(
+      canGeneratePrototype(sub({ planType: "FREE", prototypeLimit: 20 })),
+      false
+    );
+    assert.equal(
+      canGeneratePrototype(sub({ planType: "STARTER", prototypeLimit: 20 })),
+      false
+    );
+  });
+
+  test("Pro dengan kuota tersisa -> true", () => {
+    assert.equal(canGeneratePrototype(proto({ prototypeUsedThisMonth: 0 })), true);
+    assert.equal(canGeneratePrototype(proto({ prototypeUsedThisMonth: 19 })), true);
+  });
+
+  test("kuota habis -> false (tepat di limit & sudah lewat)", () => {
+    assert.equal(
+      canGeneratePrototype(proto({ prototypeUsedThisMonth: 20 })),
+      false,
+      "tepat di limit harus terkunci"
+    );
+    assert.equal(canGeneratePrototype(proto({ prototypeUsedThisMonth: 21 })), false);
+  });
+
+  test("prototypeLimit -1 (unlimited) -> selalu true", () => {
+    assert.equal(
+      canGeneratePrototype(
+        sub({ planType: "ENTERPRISE", prototypeLimit: -1, prototypeUsedThisMonth: 9999 })
+      ),
+      true
+    );
+  });
+
+  test("prototypeLimit tidak ada -> terkunci, BUKAN unlimited", () => {
+    const s = sub({ planType: "PRO" });
+    delete s.prototypeLimit;
+    assert.equal(
+      canGeneratePrototype(s),
+      false,
+      "limit undefined harus terkunci (fallback 0), bukan dianggap unlimited"
+    );
+  });
+
+  test("kedaluwarsa -> false walau kuota tersisa", () => {
+    assert.equal(canGeneratePrototype(proto({ validUntil: PAST })), false);
+  });
+});
+
+describe("remainingPrototypeQuota", () => {
+  test("unlimited (-1) -> null", () => {
+    assert.equal(
+      remainingPrototypeQuota(sub({ planType: "ENTERPRISE", prototypeLimit: -1 })),
+      null
+    );
+  });
+
+  test("menghitung sisa dengan benar", () => {
+    assert.equal(
+      remainingPrototypeQuota(sub({ prototypeLimit: 20, prototypeUsedThisMonth: 3 })),
+      17
+    );
+    assert.equal(
+      remainingPrototypeQuota(sub({ prototypeLimit: 20, prototypeUsedThisMonth: 0 })),
+      20
+    );
+  });
+
+  test("tidak pernah negatif walau pemakaian melebihi limit", () => {
+    assert.equal(
+      remainingPrototypeQuota(sub({ prototypeLimit: 20, prototypeUsedThisMonth: 20 })),
+      0
+    );
+    assert.equal(
+      remainingPrototypeQuota(sub({ prototypeLimit: 20, prototypeUsedThisMonth: 99 })),
+      0
+    );
+  });
+
+  test("limit tidak ada -> 0", () => {
+    const s = sub({ planType: "PRO" });
+    delete s.prototypeLimit;
+    assert.equal(remainingPrototypeQuota(s), 0);
   });
 });
 

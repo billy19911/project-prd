@@ -742,19 +742,23 @@ export default function ProjectDetailPage() {
                     <ThemeEditor
                       value={theme}
                       onChange={setTheme}
-                      canSave={canSaveThemes}
+                      canSaveLibrary={canSaveThemes}
                       onSave={async (t) => {
-                        try {
-                          const res = await fetch("/api/workspace/update", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ id, themeTokensJson: t }),
-                          });
-                          if (!res.ok) throw new Error();
-                          toast.success("Tema tersimpan");
-                        } catch {
-                          toast.error("Gagal menyimpan tema");
+                        const res = await fetch("/api/workspace/update", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ id, themeTokensJson: t }),
+                        });
+                        if (!res.ok) {
+                          const d = await res.json().catch(() => ({}));
+                          toast.error(d.error || "Gagal menyimpan tema");
+                          throw new Error("save failed");
                         }
+                        // Simpan ke state lokal agar tidak hilang saat render ulang.
+                        setWorkspace((prev) =>
+                          prev ? { ...prev, themeTokensJson: t } : null
+                        );
+                        toast.success("Tema tersimpan");
                       }}
                     />
                   </div>

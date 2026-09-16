@@ -900,6 +900,21 @@ function fallbackStyleGuide(title: string): string {
 /* Prototype Design (PRO)                                             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Prompt builder prototype pindah ke `lib/prototype-prompt.ts` supaya bisa
+ * diuji tanpa resolusi alias `@/lib/*`.
+ */
+import {
+  buildPrototypePrompt as buildProtoPrompt,
+  type ThemeTokensForPrompt as ThemeTokens,
+} from "@/lib/prototype-prompt";
+
+export {
+  buildPrototypePrompt,
+  buildThemeOverrideBlock,
+} from "@/lib/prototype-prompt";
+export type { ThemeTokensForPrompt } from "@/lib/prototype-prompt";
+
 export type PrototypeScreen = {
   id: string;
   label: string;
@@ -960,45 +975,11 @@ export function extractScreens(html: string): PrototypeScreen[] {
   return out;
 }
 
-/**
- * Bangun prompt untuk generator prototype.
- * Dipisah agar bisa diuji tanpa memanggil AI.
- */
-export function buildPrototypePrompt(opts: {
-  title: string;
-  prdMarkdown: string;
-  styleGuideMarkdown: string;
-  techStack: string[];
-  locale: Locale;
-}): string {
-  return [
-    `You are a senior product designer. Build a CLICKABLE HTML PROTOTYPE from the PRD and Style Guide below.`,
-    ``,
-    `Project: ${opts.title}`,
-    `Tech Stack: ${opts.techStack.join(", ") || "not specified"}`,
-    ``,
-    `=== PRD ===`,
-    opts.prdMarkdown.slice(0, 9000),
-    ``,
-    `=== STYLE GUIDE (ikuti token warna, tipografi, radius, spacing) ===`,
-    opts.styleGuideMarkdown.slice(0, 6000),
-    ``,
-    `HARD REQUIREMENTS:`,
-    `1. Output ONE self-contained HTML file. All CSS inside a <style> tag. All JS inside a <script> tag.`,
-    `2. NO external resources: no CDN, no <img src="http...">, no external fonts, no imports.`,
-    `3. Render 5 screens, each clearly separated. Before each screen write a marker comment exactly like:`,
-    `   <!-- screen: Landing -->`,
-    `   (adjust the label to the screen's real purpose; use the output language)`,
-    `4. Only ONE screen visible at a time. Use a simple JS router: clicking nav/buttons switches the visible screen.`,
-    `5. MUST be responsive: mobile-first CSS with a breakpoint around 768px. Use CSS grid/flex.`,
-    `6. Apply the Style Guide's colors and typography as CSS custom properties in :root.`,
-    `7. Use placeholder blocks for images/charts — a dashed box with a monospace caption. Do NOT draw complex SVG.`,
-    `8. No emoji as icons. No gradients unless the Style Guide specifies them.`,
-    `9. Indonesian/English copy that matches the PRD's domain. Real, meaningful text — not lorem ipsum.`,
-    ``,
-    languageDirective(opts.locale),
-    `Output ONLY the HTML document. Start with <!DOCTYPE html>. No explanation before or after.`,
-  ].join("\n");
+function fallbackScreens(): PrototypeScreen[] {
+  return DEFAULT_SCREEN_LABELS.map((label: string) => ({
+    id: label.toLowerCase(),
+    label,
+  }));
 }
 
 /**
@@ -1014,15 +995,20 @@ export async function generatePrototypeWithAI(
   techStack: string[] = [],
   model: string = "OpenCodeCombo",
   systemPrompt: string = DEFAULT_SYSTEM_PROMPT,
-  locale: Locale = "id"
+  locale: Locale = "id",
+  theme?: ThemeTokens | null
 ): Promise<PrototypeResult> {
-  const prompt = buildPrototypePrompt({
-    title,
-    prdMarkdown,
-    styleGuideMarkdown,
-    techStack,
-    locale,
-  });
+  const prompt = buildProtoPrompt(
+    {
+      title,
+      prdMarkdown,
+      styleGuideMarkdown,
+      techStack,
+      locale,
+      theme: theme ?? null,
+    },
+    languageDirective(locale as Locale)
+  );
 
   try {
     const result = await chatCompletion(
@@ -1045,12 +1031,6 @@ export async function generatePrototypeWithAI(
   }
 }
 
-function fallbackScreens(): PrototypeScreen[] {
-  return DEFAULT_SCREEN_LABELS.map((label) => ({
-    id: label.toLowerCase(),
-    label,
-  }));
-}
 
 /** Prototype minimal bila AI gagal — tetap bisa dirender, jujur soal keadaannya. */
 function fallbackPrototype(title: string): string {
