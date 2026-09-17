@@ -912,6 +912,7 @@ import {
   type ThemeTokensForPrompt as ThemeTokens,
 } from "@/lib/prototype-prompt";
 import { buildChatPrompt, buildChatSystemPrompt } from "@/lib/chat-prompt";
+import { buildConsultPrompt, buildConsultSystemPrompt } from "@/lib/consult-prompt";
 
 export {
   buildPrototypePrompt,
@@ -929,6 +930,13 @@ export {
   CHAT_HISTORY_LIMIT,
 } from "@/lib/chat-prompt";
 export type { ChatTurn } from "@/lib/chat-prompt";
+export {
+  buildConsultPrompt,
+  buildConsultSystemPrompt,
+  deriveConsultTitle,
+  CONSULT_HISTORY_LIMIT,
+} from "@/lib/consult-prompt";
+export type { ConsultTurn } from "@/lib/consult-prompt";
 
 export type PrototypeScreen = {
   id: string;
@@ -1174,7 +1182,46 @@ export async function generateChatReplyWithAI(
   }
 }
 
-/** Prototype minimal bila AI gagal — tetap bisa dirender, jujur soal keadaannya. */
+/**
+ * Balasan Konsultasi AI (arsitektur & tech stack).
+ *
+ * Mencerminkan `generateChatReplyWithAI` tapi memakai prompt konsultan.
+ * `history` adalah riwayat percakapan (user/assistant) yang sudah termasuk
+ * pesan terbaru pengguna.
+ */
+export async function generateConsultReplyWithAI(
+  history: { role: "user" | "assistant"; content: string }[],
+  opts: {
+    projectContext?: string | null;
+    model?: string;
+    systemPrompt?: string;
+    locale?: Locale;
+  } = {}
+): Promise<{ reply: string; usage: UsageInfo | null }> {
+  const {
+    projectContext = null,
+    model = "OpenCodeCombo",
+    systemPrompt = DEFAULT_SYSTEM_PROMPT,
+    locale = "id",
+  } = opts;
+
+  const base = buildConsultSystemPrompt({
+    projectContext,
+    languageDirective: languageDirective(locale),
+  });
+  const system = systemPrompt ? `${systemPrompt}\n\n${base}` : base;
+  const prompt = buildConsultPrompt(history);
+
+  if (!prompt) return { reply: "", usage: null };
+
+  try {
+    const result = await chatCompletion(model, system, prompt);
+    const reply = result.content.replace(/^\s*(Assistant|Konsultan):\s*/i, "").trim();
+    return { reply, usage: extractUsage(model, result.usage) };
+  } catch {
+    return { reply: "", usage: null };
+  }
+}
 function fallbackPrototype(title: string): string {
   return [
     `<!DOCTYPE html>`,

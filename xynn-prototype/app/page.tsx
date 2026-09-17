@@ -4,7 +4,8 @@ import { ArrowRight, Lock } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { Logo } from "@/components/ui/logo";
 import { buttonClasses } from "@/components/ui/button";
-import { PRODUCTS, type Product } from "@/lib/products";
+import { PRODUCTS, PRODUCT_FEATURE_KEY, type Product } from "@/lib/products";
+import { getFeatureStates } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
 
 function ProductCard({ product, loggedIn }: { product: Product; loggedIn: boolean }) {
@@ -94,6 +95,21 @@ export default async function HomePage() {
   const firstName = session?.user?.name?.split(" ")[0];
   const greeting = firstName ? `Halo, ${firstName}` : "Halo";
 
+  // Terapkan status rilis dari sistem flag: produk yang punya kunci fitur
+  // mengikuti status DB (LIVE→active, SOON/HIDDEN→soon/tak tampil).
+  const featureStates = await getFeatureStates();
+  const products = PRODUCTS.map((p): Product => {
+    const key = PRODUCT_FEATURE_KEY[p.id];
+    if (!key) return p;
+    const status = featureStates[key].status;
+    return { ...p, status: status === "LIVE" ? "active" : "soon" };
+  }).filter((p) => {
+    const key = PRODUCT_FEATURE_KEY[p.id];
+    if (!key) return true;
+    // Fitur HIDDEN tidak ditampilkan sama sekali.
+    return featureStates[key].status !== "HIDDEN";
+  });
+
   return (
     <main className="relative min-h-screen overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-grid opacity-[0.2]" />
@@ -124,7 +140,7 @@ export default async function HomePage() {
           </div>
 
           <div className="grid gap-3.5 sm:grid-cols-2">
-            {PRODUCTS.map((product) => (
+            {products.map((product) => (
               <div key={product.id} className="xynn-rise">
                 <ProductCard product={product} loggedIn={!!session} />
               </div>

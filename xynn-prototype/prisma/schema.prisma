@@ -130,6 +130,7 @@ model User {
   transactions  Transaction[]
   savedThemes   SavedTheme[]
   chatThreads   ChatThread[]
+  consultThreads ConsultThread[]
   ownedOrgs     Organization[]       @relation("OrgOwner")
   memberships   Membership[]
 }
@@ -178,6 +179,7 @@ model Workspace {
   themeTokensJson     Json?        // token tema tersimpan (warna, tipografi, bentuk)
   prototypeVersions   PrototypeVersion[]
   chatThreads         ChatThread[]
+  consultThreads      ConsultThread[]
 
   isPublic            Boolean      @default(false)
   isAnonymous         Boolean      @default(false)
@@ -222,6 +224,33 @@ model ChatThread {
   messages    ChatMessage[]
 
   @@index([userId, updatedAt])
+}
+
+/// Percakapan Konsultasi AI (arsitektur & tech stack). Terpisah dari chat
+/// prototype agar riwayat & tujuannya tidak tercampur.
+model ConsultThread {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  workspace   Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  title       String           @default("Konsultasi baru")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  messages    ConsultMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model ConsultMessage {
+  id        String        @id @default(uuid())
+  threadId  String
+  thread    ConsultThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role      String        // 'user' | 'assistant'
+  content   String
+  createdAt DateTime      @default(now())
+
+  @@index([threadId, createdAt])
 }
 
 model ChatMessage {
@@ -285,6 +314,32 @@ model Template {
 
   @@index([category])
   @@index([isActive, sortOrder])
+}
+
+/// Status rilis sebuah fitur. Fitur bisa dibangun penuh tapi masih
+/// ditampilkan "soon" (Segera Hadir) atau disembunyikan dari UI.
+enum FeatureStatus {
+  /// Bisa dipakai penuh dan tampil di navigasi.
+  LIVE
+  /// Tampil sebagai "Segera Hadir"; akses langsung dialihkan. Build tetap ada.
+  SOON
+  /// Tidak muncul di navigasi/landing; hanya bisa lewat allowlist admin.
+  HIDDEN
+}
+
+/// Flag rilis fitur — dikelola admin dari /admin. Memungkinkan mematikan /
+/// menyembunyikan fitur yang backend & frontend-nya sudah jadi tanpa deploy.
+model FeatureFlag {
+  id          String        @id @default(uuid())
+  /// Kunci stabil, mis. "consult" | "chat".
+  key         String        @unique
+  label       String
+  description String?
+  status      FeatureStatus @default(SOON)
+  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime      @default(now())
+
+  @@index([status])
 }
 
 model PaymentConfig {

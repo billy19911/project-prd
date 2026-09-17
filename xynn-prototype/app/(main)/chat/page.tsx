@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { buttonClasses } from "@/components/ui/button";
+import { ComingSoonGate } from "@/components/coming-soon-gate";
 import { useSubscription } from "@/lib/use-subscription";
 import { cn } from "@/lib/utils";
 
@@ -32,8 +33,28 @@ type Message = { id: string; role: string; content: string };
  *
  * Chat ini menggali kebutuhan pengguna (bukan langsung menulis HTML);
  * prototype di-generate dari tab Prototype. Karena itu ia PRO ke atas.
+ *
+ * Halaman dibungkus `ComingSoonGate`: selama flag fitur "chat" belum LIVE,
+ * yang tampil adalah layar "Segera Hadir" walaupun fiturnya sudah lengkap.
  */
 export default function ChatPage() {
+  return (
+    <ComingSoonGate
+      feature="chat"
+      title="Chat Prototype"
+      description="Susun kebutuhan prototype sambil mengobrol dengan AI. Fitur ini sedang disiapkan."
+      bullets={[
+        "Ngobrol untuk memetakan screen & alur",
+        "Jadi pintu masuk kedua untuk Prototype Design",
+        "Tersedia mulai paket PRO",
+      ]}
+    >
+      <ChatWorkspace />
+    </ComingSoonGate>
+  );
+}
+
+function ChatWorkspace() {
   const { canUsePrototype, loading: subLoading } = useSubscription();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);

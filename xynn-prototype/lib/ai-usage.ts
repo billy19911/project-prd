@@ -14,7 +14,8 @@ export async function recordAiUsage(
     | "styleguide"
     | "techstack"
     | "prototype"
-    | "chat",
+    | "chat"
+    | "consult",
   usage: UsageInfo | null
 ) {
   if (!usage) return;

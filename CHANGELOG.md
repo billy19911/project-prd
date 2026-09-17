@@ -30,6 +30,56 @@ timestamp migrasi Prisma).
 
 ---
 
+## [v1.6.0] — Konsultasi AI + Sistem Flag Rilis Fitur (17 Sep 2026)
+
+Dua hal: (1) fitur **Konsultasi AI** dibangun penuh (backend + frontend), dan
+(2) **sistem flag rilis** agar fitur yang sudah jadi tetap bisa ditampilkan
+"Segera Hadir" atau disembunyikan tanpa deploy ulang.
+
+### Added — Konsultasi AI
+
+- **Model `ConsultThread` & `ConsultMessage`** (+ migrasi
+  `20260917104105_consult_threads`) — terpisah dari chat prototype.
+- **`generateConsultReplyWithAI`** di `lib/ai.ts` + `lib/consult-prompt.ts`
+  (konsultan arsitektur: arsitektur, trade-off tech stack, roadmap).
+- **API**: `GET/POST/DELETE /api/consult/threads`,
+  `GET /api/consult/threads/[id]`, `POST /api/ai/consult`.
+- **Halaman `/consult`** — UI konsultasi (mirip chat) + gate berbayar
+  (STARTER ke atas). Jenis `consult` ditambahkan ke `recordAiUsage`.
+
+### Added — Sistem Flag Rilis
+
+- **Model `FeatureFlag`** + enum `FeatureStatus` (LIVE/SOON/HIDDEN)
+  (+ migrasi `20260917103925_feature_flags`) dan seed `seed-features.mts`.
+- **`lib/feature-flags-core.ts`** (murni, bisa diuji) +
+  **`lib/feature-flags.ts`** (baca DB, fallback aman ke SOON) +
+  **`lib/feature-guard.ts`** (guard API) + **`lib/use-feature.ts`** (hook klien).
+- **API:** `GET /api/features` (publik, status rilis),
+  `GET/POST /api/admin/features` (kontrol admin).
+- **`components/coming-soon-gate.tsx`** — LIVE→fitur penuh, SOON→layar
+  "Segera Hadir", HIDDEN→alihkan ke dashboard.
+- **`/admin/features`** — ubah status tiap fitur tanpa deploy.
+
+### Changed
+
+- **`/chat`** dan **`/consult`** kini dibungkus `ComingSoonGate`; API-nya
+  ikut diblokir (403) selama status bukan LIVE.
+- **Landing page** & **sidebar** membaca status dari DB: entri SOON diberi
+  badge "Segera", HIDDEN disembunyikan. Sidebar mendapat entri "Konsultasi AI".
+- Produk `consult` di `lib/products.ts` kini `active` (kunci berasal dari flag).
+
+### Added (test)
+
+- `tests/feature-flags.test.mjs` (11 uji) & `tests/consult-prompt.test.mjs`
+  (9 uji). Total uji: **147 lulus**.
+
+### Status rilis saat ini
+
+- `consult` = **SOON**, `chat` = **SOON** — keduanya jalan penuh di balik layar,
+  tampil "Segera Hadir", dan diblokir untuk diakses. Ubah dari `/admin/features`.
+
+---
+
 ## [v1.5.0] — Template PRD Siap Pakai (17 Sep 2026)
 
 Meluncurkan produk **Template PRD** yang sebelumnya berstatus "Segera Hadir":

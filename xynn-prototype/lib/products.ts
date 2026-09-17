@@ -75,9 +75,19 @@ export const PRODUCTS: Product[] = [
     description:
       "Diskusikan arsitektur, tech stack, dan roadmap eksekusi bersama AI konsultan.",
     href: "/consult",
-    status: "soon",
+    status: "active",
     requiresAuth: true,
     requiresPaid: true,
     accent: "from-amber-500/25",
   },
 ];
+
+/**
+ * Pemetaan id produk → kunci fitur di sistem flag.
+ * Bila ada, status rilis produk ditentukan oleh `FeatureFlag` (DB), bukan
+ * nilai `status` statis di atas — sehingga bisa di-lock tanpa deploy.
+ */
+export const PRODUCT_FEATURE_KEY: Record<string, "consult" | "chat"> = {
+  consult: "consult",
+  chat: "chat",
+};

@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { LayoutDashboard, Sparkles, Search, Settings, LogOut, Menu, X, Shield, MonitorSmartphone, MessageSquare, LayoutTemplate } from "lucide-react";
+import { LayoutDashboard, Sparkles, Search, Settings, LogOut, Menu, X, Shield, MonitorSmartphone, MessageSquare, LayoutTemplate, Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
+import { useAllFeatureStates } from "@/lib/use-feature";
+import { FEATURE_DEFS } from "@/lib/feature-flags-core";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -14,9 +16,15 @@ const nav = [
   { href: "/templates", label: "Template PRD", icon: LayoutTemplate },
   { href: "/prototype", label: "Prototype", icon: MonitorSmartphone },
   { href: "/chat", label: "Chat Prototype", icon: MessageSquare },
+  { href: "/consult", label: "Konsultasi AI", icon: Compass },
   { href: "/vault", label: "Gudang PRD", icon: Search },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+/** href → kunci fitur (untuk entri yang dikontrol sistem flag). */
+const NAV_FEATURE_KEY: Record<string, string> = Object.fromEntries(
+  FEATURE_DEFS.map((d) => [d.href, d.key])
+);
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
@@ -25,11 +33,23 @@ function isActive(pathname: string, href: string) {
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { states } = useAllFeatureStates();
   const isAdmin = (session?.user as { role?: string })?.role === "ADMIN";
 
+  // Sembunyikan entri HIDDEN; tandai SOON dengan badge "Segera".
+  const baseItems = nav
+    .filter((item) => {
+      const key = NAV_FEATURE_KEY[item.href];
+      return !key || states[key] !== "HIDDEN";
+    })
+    .map((item) => {
+      const key = NAV_FEATURE_KEY[item.href];
+      return { ...item, soon: key ? states[key] === "SOON" : false };
+    });
+
   const items = isAdmin
-    ? [...nav, { href: "/admin", label: "Admin", icon: Shield }]
-    : nav;
+    ? [...baseItems, { href: "/admin", label: "Admin", icon: Shield, soon: false }]
+    : baseItems;
 
   return (
     <nav className="flex-1 space-y-0.5 px-2 py-3">
@@ -51,6 +71,11 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             )}
             <Icon className="h-4 w-4 shrink-0" />
             {item.label}
+            {item.soon && (
+              <span className="ml-auto rounded-full border border-border bg-surface-2/60 px-1.5 py-0.5 text-[9px] font-medium text-muted">
+                Segera
+              </span>
+            )}
           </Link>
         );
       })}

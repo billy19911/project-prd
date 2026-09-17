@@ -16,6 +16,7 @@ import {
   X,
   Command,
   Layers,
+  ToggleRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buttonClasses } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/ai-config", label: "AI Config", icon: Sparkles },
   { href: "/admin/plans", label: "Paket & Harga", icon: Layers },
+  { href: "/admin/features", label: "Fitur", icon: ToggleRight },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/vouchers", label: "Vouchers", icon: Ticket },
