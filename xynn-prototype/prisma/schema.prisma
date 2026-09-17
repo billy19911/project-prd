@@ -63,6 +63,7 @@ model User {
   apiKeys       ApiKey[]
   transactions  Transaction[]
   savedThemes   SavedTheme[]
+  chatThreads   ChatThread[]
 }
 
 model Subscription {
@@ -104,6 +105,7 @@ model Workspace {
   prototypeJson       Json?        // { screens: [{id,label,order}], generatedAt }
   themeTokensJson     Json?        // token tema tersimpan (warna, tipografi, bentuk)
   prototypeVersions   PrototypeVersion[]
+  chatThreads         ChatThread[]
 
   isPublic            Boolean      @default(false)
   isAnonymous         Boolean      @default(false)
@@ -132,6 +134,33 @@ model PrototypeVersion {
   createdAt   DateTime @default(now())
 
   @@index([workspaceId, createdAt])
+}
+
+/// Percakapan chat untuk menyusun prototype secara iteratif.
+/// Terpisah dari Workspace agar chat bisa ada sebelum project dibuat.
+model ChatThread {
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  workspace   Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  title       String        @default("Percakapan baru")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  messages    ChatMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model ChatMessage {
+  id        String     @id @default(uuid())
+  threadId  String
+  thread    ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role      String     // 'user' | 'assistant'
+  content   String
+  createdAt DateTime   @default(now())
+
+  @@index([threadId, createdAt])
 }
 
 model ApiKey {

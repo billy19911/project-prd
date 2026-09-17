@@ -911,6 +911,7 @@ import {
   detectScreensFromHtml,
   type ThemeTokensForPrompt as ThemeTokens,
 } from "@/lib/prototype-prompt";
+import { buildChatPrompt, buildChatSystemPrompt } from "@/lib/chat-prompt";
 
 export {
   buildPrototypePrompt,
@@ -921,6 +922,13 @@ export {
   hasScreenMarkers,
 } from "@/lib/prototype-prompt";
 export type { ThemeTokensForPrompt } from "@/lib/prototype-prompt";
+export {
+  buildChatPrompt,
+  buildChatSystemPrompt,
+  deriveThreadTitle,
+  CHAT_HISTORY_LIMIT,
+} from "@/lib/chat-prompt";
+export type { ChatTurn } from "@/lib/chat-prompt";
 
 export type PrototypeScreen = {
   id: string;
@@ -1115,6 +1123,54 @@ export async function regenerateSingleScreenWithAI(
     };
   } catch {
     return unchanged;
+  }
+}
+
+/**
+ * Balasan untuk Chat Prototype.
+ *
+ * Chat ini BUKAN generator HTML — ia menggali kebutuhan pengguna dulu, lalu
+ * prototype di-generate lewat endpoint prototype. Karena itu output-nya teks.
+ */
+export async function generateChatReplyWithAI(
+  history: { role: "user" | "assistant"; content: string }[],
+  opts: {
+    projectContext?: string | null;
+    hasPrototype?: boolean;
+    model?: string;
+    systemPrompt?: string;
+    locale?: Locale;
+  } = {}
+): Promise<{ reply: string; usage: UsageInfo | null }> {
+  const {
+    projectContext = null,
+    hasPrototype = false,
+    model = "OpenCodeCombo",
+    systemPrompt = DEFAULT_SYSTEM_PROMPT,
+    locale = "id",
+  } = opts;
+
+  const base = buildChatSystemPrompt({
+    projectContext,
+    hasPrototype,
+    languageDirective: languageDirective(locale),
+  });
+  // Gabungkan prompt admin (bila diubah dari /admin/ai-config) dengan prompt
+  // chat, supaya penyesuaian admin tetap berlaku di chat.
+  const system = systemPrompt
+    ? `${systemPrompt}\n\n${base}`
+    : base;
+  const prompt = buildChatPrompt(history);
+
+  if (!prompt) return { reply: "", usage: null };
+
+  try {
+    const result = await chatCompletion(model, system, prompt);
+    // Model kadang menambahkan prefix "Assistant:" walau sudah dilarang.
+    const reply = result.content.replace(/^\s*Assistant:\s*/i, "").trim();
+    return { reply, usage: extractUsage(model, result.usage) };
+  } catch {
+    return { reply: "", usage: null };
   }
 }
 

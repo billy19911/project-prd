@@ -6,7 +6,15 @@ import type { UsageInfo } from "@/lib/ai";
  */
 export async function recordAiUsage(
   userId: string | null | undefined,
-  kind: "mindmap" | "prd" | "questions" | "tasks" | "styleguide" | "techstack" | "prototype",
+  kind:
+    | "mindmap"
+    | "prd"
+    | "questions"
+    | "tasks"
+    | "styleguide"
+    | "techstack"
+    | "prototype"
+    | "chat",
   usage: UsageInfo | null
 ) {
   if (!usage) return;
