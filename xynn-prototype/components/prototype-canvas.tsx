@@ -48,6 +48,7 @@ export function PrototypeCanvas({
   onRegenerateScreen,
   onRestoreVersion,
   className,
+  height = "h-[720px]",
 }: {
   html: string;
   screens?: PrototypeScreen[];
@@ -62,6 +63,8 @@ export function PrototypeCanvas({
    */
   onRestoreVersion?: (versionId: string) => Promise<string | null>;
   className?: string;
+  /** Tinggi area render (frame + code). Default besar agar terlihat penuh. */
+  height?: string;
 }) {
   const [viewport, setViewport] = useState<Viewport>("desktop");
   const [mode, setMode] = useState<Mode>("preview");
@@ -125,8 +128,8 @@ export function PrototypeCanvas({
           value={viewport}
           onChange={setViewport}
           items={[
-            { value: "desktop", label: "Desktop", icon: Monitor },
-            { value: "mobile", label: "Mobile", icon: Smartphone },
+            { value: "desktop", label: "Desktop · 100%", icon: Monitor },
+            { value: "mobile", label: "Mobile · 390px", icon: Smartphone },
           ]}
         />
 
@@ -263,19 +266,29 @@ export function PrototypeCanvas({
 
       {/* Render */}
       {mode === "preview" ? (
-        <div className="flex justify-center overflow-x-auto rounded-[var(--radius-card)] border border-border bg-background/60 p-3">
+        <div
+          className={cn(
+            "flex justify-center overflow-x-auto rounded-[var(--radius-card)] border border-border bg-background/60 p-3",
+            height
+          )}
+        >
           <iframe
             title={`Prototype — ${title}`}
             srcDoc={html}
             sandbox={sandbox}
             className={cn(
-              "h-[560px] shrink-0 rounded-xl border border-border-strong bg-white transition-[width] duration-300",
-              viewport === "desktop" ? "w-full" : "w-[390px] max-w-full"
+              "h-full shrink-0 rounded-xl border border-border-strong bg-white transition-[width] duration-300",
+              viewport === "desktop" ? "w-full" : "w-[390px] max-w-full shadow-2xl"
             )}
           />
         </div>
       ) : (
-        <pre className="max-h-[560px] min-w-0 overflow-auto rounded-[var(--radius-card)] border border-border bg-background/80 p-4 font-mono text-[11px] leading-relaxed text-muted whitespace-pre-wrap break-words">
+        <pre
+          className={cn(
+            "min-w-0 overflow-auto rounded-[var(--radius-card)] border border-border bg-background/80 p-4 font-mono text-[11px] leading-relaxed text-muted whitespace-pre-wrap break-words",
+            height
+          )}
+        >
           {html}
         </pre>
       )}

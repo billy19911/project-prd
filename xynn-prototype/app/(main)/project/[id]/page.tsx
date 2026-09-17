@@ -97,6 +97,8 @@ export default function ProjectDetailPage() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("mindmap");
+  // Panel tema prototype bisa dilipat agar kanvas dapat lebar penuh di desktop.
+  const [themePanelOpen, setThemePanelOpen] = useState(true);
 
   // edit
   const [editing, setEditing] = useState(false);
@@ -359,8 +361,10 @@ export default function ProjectDetailPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {/* Sidebar info */}
-        <div className="space-y-4 lg:col-span-1">
+        {/* Sidebar info — disembunyikan saat tab Prototype (mode fokus penuh)
+            agar kanvas prototype memakai lebar penuh di desktop. */}
+        {tab !== "prototype" && (
+          <div className="space-y-4 lg:col-span-1">
           <Card>
             <CardHeader>
               <CardTitle>{L.projDetail}</CardTitle>
@@ -625,10 +629,11 @@ export default function ProjectDetailPage() {
               </Button>
             </CardBody>
           </Card>
-        </div>
+          </div>
+        )}
 
-        {/* Main content tabs */}
-        <div className="min-w-0 lg:col-span-3">
+        {/* Main content tabs — full width (4 kolom) saat mode fokus prototype */}
+        <div className={cn("min-w-0", tab === "prototype" ? "lg:col-span-4" : "lg:col-span-3")}>
           <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface/60 p-1">
             {tabs.map((tabItem) => {
               const Icon = tabItem.icon;
@@ -685,8 +690,27 @@ export default function ProjectDetailPage() {
                   {tabItem.locked && !iconBusy && <Lock className="h-3 w-3" />}
                 </button>
               );
-            })}
+             })}
           </div>
+
+          {/* Toggle panel tema (khusus tab Prototype) */}
+          {tab === "prototype" && workspace.prototypeHtml && (
+            <div className="mb-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setThemePanelOpen((v) => !v)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                  themePanelOpen
+                    ? "border-accent/40 bg-accent/10 text-accent"
+                    : "border-border-strong bg-surface-2 text-foreground hover:bg-surface"
+                )}
+              >
+                <Palette className="h-3.5 w-3.5" />
+                {themePanelOpen ? "Sembunyikan panel tema" : "Tampilkan panel tema"}
+              </button>
+            </div>
+          )}
 
           <Card>
             <CardBody>
@@ -731,13 +755,21 @@ export default function ProjectDetailPage() {
 
               {tab === "prototype" &&
                 (workspace.prototypeHtml ? (
-                  <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_264px]">
+                  <div
+                    className={cn(
+                      "grid min-w-0 gap-4",
+                      themePanelOpen
+                        ? "lg:grid-cols-[minmax(0,1fr)_300px]"
+                        : "lg:grid-cols-1"
+                    )}
+                  >
                     <div className="min-w-0">
                     <PrototypeCanvas
                       html={applyThemeToHtml(workspace.prototypeHtml, theme)}
                       screens={workspace.prototypeJson?.screens}
                       title={workspace.title}
                       busy={busy === "prototype"}
+                      height={themePanelOpen ? "h-[680px]" : "h-[820px]"}
                       onRegenerate={() => generate("prototype")}
                       onRegenerateScreen={(label) => generate("prototype", label)}
                       onRestoreVersion={async (versionId) => {
@@ -761,6 +793,7 @@ export default function ProjectDetailPage() {
                       }}
                      />
                     </div>
+                    {themePanelOpen && (
                     <ThemeEditor
                       value={theme}
                       onChange={setTheme}
@@ -796,6 +829,7 @@ export default function ProjectDetailPage() {
                         toast.success("Tema tersimpan");
                       }}
                     />
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-3 py-12 text-center">

@@ -247,12 +247,14 @@ export default function NewProjectWizard() {
     }
   }, [workspaceId, questions, answers, locale]);
 
-  /* ---------- Step 6: PRD + tasks + style guide ---------- */
-  const generateOutputs = useCallback(async () => {
-    if (!workspaceId) return;
-    setStep("output");
-    setBusy("prd");
+  /* ---------- Step 6: PRD → Task → Style (BERTAHAP, bukan sekaligus) ---------- */
+  // Tiap tahap di-generate HANYA saat diminta (menekan tombol lanjut), supaya
+  // pengguna meninjau tiap hasil dan tidak membakar kuota AI sekaligus.
 
+  /** Hasilkan PRD. Mengembalikan true bila berhasil. */
+  const generatePrd = useCallback(async (): Promise<boolean> => {
+    if (!workspaceId) return false;
+    setBusy("prd");
     try {
       const res = await fetch("/api/ai/full-prd", {
         method: "POST",
@@ -263,18 +265,24 @@ export default function NewProjectWizard() {
       if (res.status === 402) {
         upgrade.open({
           title: "Berlangganan untuk melanjutkan",
-          message: "Untuk men-generate PRD, task, dan style guide, pilih paket berbayar.",
+          message: "Untuk men-generate PRD, pilih paket berbayar.",
         });
-        setBusy(null);
-        return;
+        return false;
       }
-      if (res.ok) setPrd(data.prd);
-    } catch {
-      toast.error("Gagal generate PRD");
+      if (!res.ok) throw new Error(data.error || "Gagal generate PRD");
+      setPrd(data.prd);
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal generate PRD");
+      return false;
     } finally {
       setBusy(null);
     }
+  }, [workspaceId, upgrade]);
 
+  /** Hasilkan Task Breakdown (butuh PRD). */
+  const generateTasks = useCallback(async (): Promise<boolean> => {
+    if (!workspaceId) return false;
     setBusy("tasks");
     try {
       const res = await fetch("/api/ai/tasks", {
@@ -282,13 +290,23 @@ export default function NewProjectWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: workspaceId }),
       });
-      if (res.ok) setTaskGroups((await res.json()).groups || []);
-    } catch {
-      /* ignore */
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Gagal generate task");
+      }
+      setTaskGroups((await res.json()).groups || []);
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal generate task");
+      return false;
     } finally {
       setBusy(null);
     }
+  }, [workspaceId]);
 
+  /** Hasilkan Style Guide (butuh Task). */
+  const generateStyle = useCallback(async (): Promise<boolean> => {
+    if (!workspaceId) return false;
     setBusy("style");
     try {
       const res = await fetch("/api/ai/styleguide", {
@@ -296,15 +314,21 @@ export default function NewProjectWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: workspaceId }),
       });
-      if (res.ok) setStyleGuide((await res.json()).styleGuide || "");
-    } catch {
-      /* ignore */
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Gagal generate style guide");
+      }
+      setStyleGuide((await res.json()).styleGuide || "");
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal generate style guide");
+      return false;
     } finally {
       setBusy(null);
     }
-  }, [workspaceId, upgrade]);
+  }, [workspaceId]);
 
-  /* ---------- Step 5: paywall ---------- */
+  /* ---------- Step 5: paywall → mulai PRD ---------- */
   const continueFromMindmap = useCallback(async () => {
     const res = await fetch("/api/user/subscription");
     const sub = res.ok ? await res.json() : { isActive: false, planType: "FREE" };
@@ -312,13 +336,16 @@ export default function NewProjectWizard() {
       upgrade.open({
         title: "Berlangganan untuk melanjutkan",
         message:
-          "Mindmap siap! Untuk men-generate PRD lengkap, task breakdown, dan style guide, pilih paket berbayar.",
+          "Mindmap siap! Untuk men-generate PRD lengkap, pilih paket berbayar.",
         highlight: "Struktur Anda tersimpan — lanjut setelah berlangganan.",
       });
       return;
     }
-    await generateOutputs();
-  }, [generateOutputs, upgrade]);
+    // Masuk ke step output, lalu HANYA PRD yang di-generate dulu.
+    setStep("output");
+    setActiveTab("prd");
+    await generatePrd();
+  }, [generatePrd, upgrade]);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("id");
@@ -746,32 +773,50 @@ export default function NewProjectWizard() {
               ) : prd ? (
                 <MarkdownRenderer markdown={prd} storageKey={`wizard-${workspaceId}-prd`} />
               ) : (
-                <p className="py-6 text-center text-sm text-muted">{L.prdEmpty}</p>
+                <GeneratePrompt
+                  label={L.prdEmpty}
+                  cta={L.projGenPrd}
+                  busy={busy === "prd"}
+                  onGenerate={() => void generatePrd()}
+                />
               ))}
 
             {activeTab === "tasks" &&
               (!prd ? (
                 <StepLocked onUnlock={() => setActiveTab("prd")} label={L.unlockPrdFirst} />
-              ) : busy === "tasks" && taskGroups.length === 0 ? (
+              ) : busy === "tasks" ? (
                 <LoadingBlock label={L.generatingTasks} />
-              ) : (
+              ) : taskGroups.length > 0 ? (
                 <TaskList groups={taskGroups} emptyLabel={L.tasksEmpty} />
+              ) : (
+                <GeneratePrompt
+                  label={L.tasksEmpty}
+                  cta={L.tabTasks}
+                  busy={busy === "tasks"}
+                  onGenerate={() => void generateTasks()}
+                />
               ))}
 
             {activeTab === "style" &&
               (taskGroups.length === 0 ? (
                 <StepLocked onUnlock={() => setActiveTab("tasks")} label={L.unlockTasksFirst} />
-              ) : busy === "style" && !styleGuide ? (
+              ) : busy === "style" ? (
                 <LoadingBlock label={L.generatingStyle} />
               ) : styleGuide ? (
                 <MarkdownRenderer markdown={styleGuide} storageKey={`wizard-${workspaceId}-style`} />
               ) : (
-                <p className="py-6 text-center text-sm text-muted">{L.styleEmpty}</p>
+                <GeneratePrompt
+                  label={L.styleEmpty}
+                  cta={L.tabStyle}
+                  busy={busy === "style"}
+                  onGenerate={() => void generateStyle()}
+                />
               ))}
           </div>
 
-          {/* Navigasi antar-step */}
-          <div className="flex items-center justify-between">
+          {/* Navigasi antar-step — sticky agar selalu terjangkau walau konten
+              (mis. PRD) sangat panjang. */}
+          <div className="sticky bottom-4 z-10 flex items-center justify-between gap-3 rounded-2xl border border-border bg-background/90 px-3 py-2.5 backdrop-blur">
             <Button
               variant="ghost"
               onClick={() => {
@@ -779,28 +824,35 @@ export default function NewProjectWizard() {
                 const i = order.indexOf(activeTab);
                 if (i > 0) setActiveTab(order[i - 1]);
               }}
-              disabled={activeTab === "prd"}
+              disabled={activeTab === "prd" || !!busy}
             >
               <ArrowLeft className="h-4 w-4" />
               {L.back}
             </Button>
             {activeTab !== "style" ? (
               <Button
-                onClick={() => {
-                  const order: ("prd" | "tasks" | "style")[] = ["prd", "tasks", "style"];
-                  const i = order.indexOf(activeTab);
-                  const next = order[i + 1];
-                  const ready =
-                    (next === "tasks" && !!prd) ||
-                    (next === "style" && taskGroups.length > 0);
-                  if (ready) setActiveTab(next);
+                onClick={async () => {
+                  // Lanjut = generate tahap berikutnya (bila belum ada), lalu pindah tab.
+                  if (activeTab === "prd") {
+                    if (!prd) {
+                      const ok = await generatePrd();
+                      if (!ok) return;
+                    }
+                    if (taskGroups.length === 0) await generateTasks();
+                    setActiveTab("tasks");
+                  } else if (activeTab === "tasks") {
+                    if (taskGroups.length === 0) {
+                      const ok = await generateTasks();
+                      if (!ok) return;
+                    }
+                    if (!styleGuide) await generateStyle();
+                    setActiveTab("style");
+                  }
                 }}
-                disabled={
-                  (activeTab === "prd" && !prd) ||
-                  (activeTab === "tasks" && taskGroups.length === 0)
-                }
+                disabled={!!busy}
                 size="lg"
               >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {activeTab === "prd" ? L.tabTasks : L.tabStyle}
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -876,6 +928,32 @@ function LoadingBlock({ label }: { label: string }) {
     <div className="flex flex-col items-center gap-3 py-12 text-center">
       <Loader2 className="h-6 w-6 animate-spin text-accent" />
       <p className="text-sm text-muted">{label}</p>
+    </div>
+  );
+}
+
+/** Ajakan generate untuk tab yang belum punya data (PRD/Task/Style). */
+function GeneratePrompt({
+  label,
+  cta,
+  busy,
+  onGenerate,
+}: {
+  label: string;
+  cta: string;
+  busy: boolean;
+  onGenerate: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-12 text-center">
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-inset ring-accent/20">
+        <Sparkles className="h-5 w-5" />
+      </div>
+      <p className="max-w-sm text-sm text-muted">{label}</p>
+      <Button onClick={onGenerate} disabled={busy}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+        {cta}
+      </Button>
     </div>
   );
 }
