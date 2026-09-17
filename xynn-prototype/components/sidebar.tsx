@@ -98,7 +98,7 @@ function AccountFooter() {
           onClick={() => signOut({ callbackUrl: "/login" })}
           aria-label="Sign out"
           title="Sign out"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
         >
           <LogOut className="h-4 w-4" />
         </button>
@@ -127,7 +127,7 @@ export default function Sidebar() {
         <button
           aria-label="Buka menu"
           onClick={() => setOpen(true)}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-muted hover:text-foreground"
         >
           <Menu className="h-5 w-5" />
         </button>
@@ -146,7 +146,7 @@ export default function Sidebar() {
               <button
                 aria-label="Tutup menu"
                 onClick={() => setOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted hover:text-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-muted hover:text-foreground"
               >
                 <X className="h-5 w-5" />
               </button>

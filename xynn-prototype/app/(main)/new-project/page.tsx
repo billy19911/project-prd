@@ -372,6 +372,8 @@ export default function NewProjectWizard() {
   }, []);
 
   return (
+    // Lebar sengaja lebih sempit dari layout (max-w-6xl): wizard = alur fokus
+    // satu kolom, agar mata tidak melebar. Pengecualian terdokumentasi.
     <div className="mx-auto max-w-2xl space-y-8">
       {/* Progress */}
       <div className="space-y-3">
@@ -694,7 +696,7 @@ export default function NewProjectWizard() {
                   }}
                   disabled={!clickable}
                   className={cn(
-                    "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                    "flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
                     active
                       ? "bg-surface-2 text-foreground"
                       : clickable

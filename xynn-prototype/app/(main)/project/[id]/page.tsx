@@ -628,7 +628,7 @@ export default function ProjectDetailPage() {
         </div>
 
         {/* Main content tabs */}
-        <div className="lg:col-span-3">
+        <div className="min-w-0 lg:col-span-3">
           <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface/60 p-1">
             {tabs.map((tabItem) => {
               const Icon = tabItem.icon;
@@ -670,7 +670,7 @@ export default function ProjectDetailPage() {
                   }}
                   disabled={false}
                   className={cn(
-                    "flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    "flex min-h-9 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors",
                     tab === tabItem.id
                       ? "bg-surface-2 text-foreground"
                       : tabItem.locked
@@ -731,7 +731,8 @@ export default function ProjectDetailPage() {
 
               {tab === "prototype" &&
                 (workspace.prototypeHtml ? (
-                  <div className="grid gap-4 lg:grid-cols-[1fr_264px]">
+                  <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_264px]">
+                    <div className="min-w-0">
                     <PrototypeCanvas
                       html={applyThemeToHtml(workspace.prototypeHtml, theme)}
                       screens={workspace.prototypeJson?.screens}
@@ -758,7 +759,8 @@ export default function ProjectDetailPage() {
                           return null;
                         }
                       }}
-                    />
+                     />
+                    </div>
                     <ThemeEditor
                       value={theme}
                       onChange={setTheme}
@@ -834,15 +836,15 @@ export default function ProjectDetailPage() {
 
       {/* Konfirmasi hapus */}
       {confirmDelete && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl border border-border bg-background p-5 shadow-2xl">
+        <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/70 p-4 py-8 backdrop-blur-sm">
+          <div className="my-auto w-full max-w-sm rounded-2xl border border-border bg-background p-5 shadow-2xl">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger/15 text-danger">
                 <Trash2 className="h-5 w-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-foreground">Hapus project?</h2>
-                <p className="mt-0.5 text-xs text-muted">
+                <p className="mt-0.5 text-xs text-muted break-words">
                   &quot;{workspace.title}&quot; akan dihapus permanen.
                 </p>
               </div>

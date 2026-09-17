@@ -230,7 +230,7 @@ export default function PublicPRDPage() {
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[200px_1fr_220px] lg:py-8">
         {/* TOC desktop */}
         <aside className="hidden lg:block">
-          <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto rounded-[--radius-card] border border-border bg-surface/40 p-3">
+          <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto rounded-[var(--radius-card)] border border-border bg-surface/40 p-3">
             <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
               {L.pubToc}
             </p>
@@ -285,7 +285,7 @@ export default function PublicPRDPage() {
             {view === "visual" ? (
               <article
                 className={cn(
-                  "rounded-[--radius-card] border border-border bg-surface/40 p-4 sm:p-6",
+                  "rounded-[var(--radius-card)] border border-border bg-surface/40 p-4 sm:p-6",
                   !canExport && "pointer-events-none select-none blur-sm"
                 )}
               >
@@ -317,7 +317,7 @@ export default function PublicPRDPage() {
             ) : (
               <article
                 className={cn(
-                  "rounded-[--radius-card] border border-border bg-background/80 p-4 sm:p-6",
+                  "rounded-[var(--radius-card)] border border-border bg-background/80 p-4 sm:p-6",
                   !canExport && "pointer-events-none select-none blur-sm"
                 )}
               >
@@ -338,7 +338,7 @@ export default function PublicPRDPage() {
             )}
 
             {!canExport && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-[--radius-card] bg-background/30 px-4 text-center">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-[var(--radius-card)] bg-background/30 px-4 text-center">
                 <Lock className="h-6 w-6 text-accent" />
                 <p className="text-sm font-medium text-foreground">
                   {L.pubLocked}
@@ -353,7 +353,7 @@ export default function PublicPRDPage() {
 
         {/* Action panel desktop */}
         <aside className="hidden lg:block">
-          <div className="sticky top-24 space-y-2 rounded-[--radius-card] border border-border bg-surface/40 p-4">
+          <div className="sticky top-24 space-y-2 rounded-[var(--radius-card)] border border-border bg-surface/40 p-4">
             <Button variant="secondary" size="sm" className="w-full" onClick={copySpecs}>
               <Copy className="h-3.5 w-3.5" />
               {L.pubCopy}

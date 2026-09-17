@@ -155,7 +155,7 @@ export default function DashboardPage() {
               <Link
                 key={ws.id}
                 href={`/project/${ws.id}`}
-                className="group flex flex-col rounded-[--radius-card] border border-border bg-surface/60 p-4 transition-colors hover:border-border-strong hover:bg-surface"
+                className="group flex flex-col rounded-[var(--radius-card)] border border-border bg-surface/60 p-4 transition-colors hover:border-border-strong hover:bg-surface"
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="line-clamp-1 font-medium text-foreground transition-colors group-hover:text-accent">

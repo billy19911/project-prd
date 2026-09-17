@@ -120,7 +120,7 @@ export default function VaultPage() {
             <Link
               key={item.id}
               href={`/prd/${item.shareSlug}`}
-              className="group flex flex-col rounded-[--radius-card] border border-border bg-surface/60 p-4 transition-colors hover:border-border-strong hover:bg-surface"
+              className="group flex flex-col rounded-[var(--radius-card)] border border-border bg-surface/60 p-4 transition-colors hover:border-border-strong hover:bg-surface"
             >
               <h3 className="line-clamp-1 font-medium text-foreground transition-colors group-hover:text-accent">
                 {item.title}

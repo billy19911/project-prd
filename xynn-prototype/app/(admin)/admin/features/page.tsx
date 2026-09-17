@@ -110,7 +110,7 @@ export default function FeaturesPage() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 sm:w-auto">
+                <div className="flex w-full items-center gap-2 sm:w-auto">
                   <Select
                     value={draft}
                     onChange={(e) =>
@@ -119,7 +119,7 @@ export default function FeaturesPage() {
                         [f.key]: e.target.value as FeatureRow["status"],
                       }))
                     }
-                    className="h-9 w-52 text-xs"
+                    className="h-9 w-full text-xs sm:w-52"
                   >
                     {STATUS_OPTIONS.map((s) => (
                       <option key={s} value={s}>

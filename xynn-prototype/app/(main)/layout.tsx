@@ -27,6 +27,13 @@ export default function MainLayout({
     <div className="flex min-h-screen flex-col lg:flex-row">
       <Sidebar />
       <main className="flex-1 overflow-x-hidden">
+        {/*
+          Lebar konten ditentukan DI SINI (max-w-6xl) sebagai satu sumber
+          kebenaran. Halaman tidak perlu menambah `mx-auto max-w-*` sendiri —
+          kecuali alur fokus yang sengaja sempit (mis. wizard `/new-project`,
+          `/project/[id]/execute`) atau kartu gate terpusat. Pengecualian itu
+          didokumentasikan di file masing-masing.
+        */}
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
           {children}
         </div>

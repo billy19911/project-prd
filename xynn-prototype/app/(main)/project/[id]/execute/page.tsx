@@ -113,7 +113,7 @@ export default function ExecutePage() {
           </p>
 
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border-strong bg-background/80 p-3">
-            <code className="overflow-x-auto whitespace-nowrap font-mono text-xs text-accent sm:text-sm">
+            <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs text-accent sm:text-sm">
               {cliCommand}
             </code>
             <Button variant="secondary" size="sm" onClick={copyCommand} className="shrink-0">

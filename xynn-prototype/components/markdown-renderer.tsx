@@ -115,7 +115,7 @@ export function MarkdownRenderer({ markdown, storageKey }: { markdown: string; s
       </blockquote>
     ),
     table: ({ children }) => (
-      <div className="my-4 overflow-x-auto">
+      <div className="my-4 min-w-0 overflow-x-auto">
         <table className="w-full border-collapse text-sm">{children}</table>
       </div>
     ),
@@ -128,7 +128,9 @@ export function MarkdownRenderer({ markdown, storageKey }: { markdown: string; s
       <th className="px-3 py-2 font-semibold">{children}</th>
     ),
     td: ({ children }) => (
-      <td className="border-b border-border px-3 py-2 text-muted">{children}</td>
+      <td className="border-b border-border px-3 py-2 text-muted break-words">
+        {children}
+      </td>
     ),
     code: ({ className, children }) => {
       const isBlock = /language-/.test(className || "");
@@ -153,7 +155,7 @@ export function MarkdownRenderer({ markdown, storageKey }: { markdown: string; s
   };
 
   return (
-    <div>
+    <div className="min-w-0 max-w-full break-words">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {cleaned}
       </ReactMarkdown>

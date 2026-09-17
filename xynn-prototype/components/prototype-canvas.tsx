@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 
 export type PrototypeScreen = { id: string; label: string };
 
@@ -107,53 +108,27 @@ export function PrototypeCanvas({
     <div className={cn("space-y-3", className)}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-surface/60 p-1">
-          <button
-            onClick={() => setMode("preview")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-              mode === "preview" ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
-            )}
-          >
-            <Eye className="h-3.5 w-3.5" />
-            Preview
-          </button>
-          <button
-            onClick={() => setMode("code")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-              mode === "code" ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
-            )}
-          >
-            <Code2 className="h-3.5 w-3.5" />
-            Code
-          </button>
-        </div>
+        <SegmentedControl
+          ariaLabel="Mode tampilan"
+          size="sm"
+          value={mode}
+          onChange={setMode}
+          items={[
+            { value: "preview", label: "Preview", icon: Eye },
+            { value: "code", label: "Code", icon: Code2 },
+          ]}
+        />
 
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-surface/60 p-1">
-          <button
-            onClick={() => setViewport("desktop")}
-            aria-label="Desktop"
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-              viewport === "desktop" ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
-            )}
-          >
-            <Monitor className="h-3.5 w-3.5" />
-            Desktop
-          </button>
-          <button
-            onClick={() => setViewport("mobile")}
-            aria-label="Mobile"
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-              viewport === "mobile" ? "bg-surface-2 text-foreground" : "text-muted hover:text-foreground"
-            )}
-          >
-            <Smartphone className="h-3.5 w-3.5" />
-            Mobile
-          </button>
-        </div>
+        <SegmentedControl
+          ariaLabel="Lebar viewport"
+          size="sm"
+          value={viewport}
+          onChange={setViewport}
+          items={[
+            { value: "desktop", label: "Desktop", icon: Monitor },
+            { value: "mobile", label: "Mobile", icon: Smartphone },
+          ]}
+        />
 
         <span className="flex-1" />
 
@@ -288,19 +263,19 @@ export function PrototypeCanvas({
 
       {/* Render */}
       {mode === "preview" ? (
-        <div className="flex justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-background/60 p-3">
+        <div className="flex justify-center overflow-x-auto rounded-[var(--radius-card)] border border-border bg-background/60 p-3">
           <iframe
             title={`Prototype — ${title}`}
             srcDoc={html}
             sandbox={sandbox}
             className={cn(
-              "h-[560px] rounded-xl border border-border-strong bg-white transition-[width] duration-300",
-              viewport === "desktop" ? "w-full" : "w-[390px]"
+              "h-[560px] shrink-0 rounded-xl border border-border-strong bg-white transition-[width] duration-300",
+              viewport === "desktop" ? "w-full" : "w-[390px] max-w-full"
             )}
           />
         </div>
       ) : (
-        <pre className="max-h-[560px] overflow-auto rounded-[var(--radius-card)] border border-border bg-background/80 p-4 font-mono text-[11px] leading-relaxed text-muted whitespace-pre-wrap">
+        <pre className="max-h-[560px] min-w-0 overflow-auto rounded-[var(--radius-card)] border border-border bg-background/80 p-4 font-mono text-[11px] leading-relaxed text-muted whitespace-pre-wrap break-words">
           {html}
         </pre>
       )}

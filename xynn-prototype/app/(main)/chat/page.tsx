@@ -229,13 +229,13 @@ function ChatWorkspace() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Chat Prototype"
         description="Susun kebutuhan prototype sambil mengobrol. Prototype di-generate dari tab Prototype."
       />
 
-      <div className="grid min-h-[600px] overflow-hidden rounded-[var(--radius-card)] border border-border lg:grid-cols-[260px_1fr]">
+      <div className="grid h-[calc(100dvh-14rem)] min-h-[420px] overflow-hidden rounded-[var(--radius-card)] border border-border lg:h-auto lg:min-h-[600px] lg:grid-cols-[260px_1fr]">
         {/* Daftar thread */}
         <aside className="flex flex-col border-b border-border bg-surface/40 lg:border-b-0 lg:border-r">
           <div className="flex h-11 items-center gap-2 border-b border-border px-3">
@@ -285,7 +285,7 @@ function ChatWorkspace() {
                       <button
                         onClick={() => void removeThread(t.id)}
                         aria-label={`Hapus ${t.title}`}
-                        className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+                        className="shrink-0 rounded p-1.5 text-muted transition-opacity hover:text-danger sm:opacity-0 sm:group-hover:opacity-100"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -347,13 +347,13 @@ function ChatWorkspace() {
                 rows={1}
                 maxLength={4000}
                 placeholder="Ceritakan aplikasimu... (Enter untuk kirim)"
-                className="min-h-[38px] flex-1 resize-none rounded-lg border border-border-strong bg-surface-2 px-3 py-2 text-xs text-foreground placeholder:text-muted"
+                className="min-h-[44px] flex-1 resize-none rounded-lg border border-border-strong bg-surface-2 px-3 py-2 text-xs text-foreground placeholder:text-muted"
               />
               <button
                 onClick={() => void send()}
                 disabled={!draft.trim() || sending}
                 aria-label="Kirim"
-                className="inline-flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {sending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

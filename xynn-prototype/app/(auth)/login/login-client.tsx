@@ -48,7 +48,7 @@ export default function LoginClient({
           <Logo href="/" />
         </div>
 
-        <div className="rounded-[--radius-card] border border-border bg-surface/70 p-6 backdrop-blur-sm sm:p-7">
+        <div className="rounded-[var(--radius-card)] border border-border bg-surface/70 p-6 backdrop-blur-sm sm:p-7">
           <h1 className="text-center text-lg font-semibold tracking-tight text-foreground">
             Masuk ke Xynn
           </h1>
