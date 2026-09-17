@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canUsePrototype } from "@/lib/access";
 import { generateChatReplyWithAI, deriveThreadTitle } from "@/lib/ai";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { guardFeature } from "@/lib/feature-guard";
 
 interface SessionUser {
   id: string;
@@ -20,6 +21,9 @@ const MAX_MESSAGE = 4000;
  * Balasan: { reply, usage? } — pesan pengguna & balasan disimpan ke riwayat.
  */
 export async function POST(req: Request) {
+  const blocked = await guardFeature("chat");
+  if (blocked) return blocked;
+
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

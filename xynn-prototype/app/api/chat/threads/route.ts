@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canUsePrototype } from "@/lib/access";
 import { getWorkspaceAccess } from "@/lib/workspace-access";
+import { guardFeature } from "@/lib/feature-guard";
 
 interface SessionUser {
   id: string;
@@ -14,10 +15,16 @@ interface SessionUser {
  *
  * Chat Prototype adalah fitur PRO ke atas (sama seperti Prototype Design),
  * karena ia mengarah ke generate prototype.
+ *
+ * Dijaga `guardFeature("chat")`: backend ikut terkunci selama fitur berstatus
+ * SOON/HIDDEN — bukan hanya halamannya.
  */
 
 /** GET: daftar thread milik pengguna (tanpa isi pesan, agar ringan). */
 export async function GET() {
+  const blocked = await guardFeature("chat");
+  if (blocked) return blocked;
+
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -57,6 +64,9 @@ export async function GET() {
 
 /** POST: buat thread baru. */
 export async function POST(req: Request) {
+  const blocked = await guardFeature("chat");
+  if (blocked) return blocked;
+
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -91,6 +101,9 @@ export async function POST(req: Request) {
 
 /** DELETE: hapus thread (dan pesannya via cascade). */
 export async function DELETE(req: Request) {
+  const blocked = await guardFeature("chat");
+  if (blocked) return blocked;
+
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
