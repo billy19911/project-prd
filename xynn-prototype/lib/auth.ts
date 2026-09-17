@@ -98,8 +98,12 @@ async function acceptPendingInvites(email: string | null | undefined): Promise<v
       }
     }
   } catch (error) {
-    // Jangan blokir login karena masalah undangan.
-    console.error("[auth] Gagal memproses undangan tim:", error);
+    // Jangan blokir login karena masalah undangan. Catat ringkas (bukan stack
+    // penuh) agar tidak memicu overlay error Next.js saat DB tak terjangkau.
+    const code = (error as { code?: string })?.code;
+    console.warn(
+      `[auth] Gagal memproses undangan tim${code ? ` (${code})` : ""}.`
+    );
   }
 }
 
@@ -157,7 +161,10 @@ export const authOptions: NextAuthOptions = {
                   image: user.avatarUrl,
                 };
               } catch (error) {
-                console.error("[auth] Demo login gagal:", error);
+                const code = (error as { code?: string })?.code;
+                console.warn(
+                  `[auth] Demo login gagal${code ? ` (${code})` : ""}; login ditolak.`
+                );
                 return null;
               }
             },
@@ -199,7 +206,10 @@ export const authOptions: NextAuthOptions = {
         } catch (error) {
           // Jangan biarkan error DB (mis. koneksi putus) mem-bocorkan pesan
           // non-ASCII ke header redirect NextAuth — cukup tolak login.
-          console.error("[auth] Auto-provisioning gagal:", error);
+          const code = (error as { code?: string })?.code;
+          console.warn(
+            `[auth] Auto-provisioning gagal${code ? ` (${code})` : ""}; login ditolak.`
+          );
           return false;
         }
       }
@@ -226,7 +236,15 @@ export const authOptions: NextAuthOptions = {
           token.plan = dbUser.subscription?.planType ?? "FREE";
         }
       } catch (error) {
-        console.error("[auth] Gagal memuat user untuk JWT:", error);
+        // Saat DB tak terjangkau, JANGAN petingalkan stack penuh: ini terjadi
+        // tiap request dan akan memicu overlay error Next.js dev. Cukup catat
+        // kode + pesan singkat; token tetap dikembalikan apa adanya agar
+        // halaman tetap render (user sekadar kehilangan role/plan sementara).
+        const code = (error as { code?: string })?.code;
+        const msg = (error as { message?: string })?.message ?? "unknown";
+        console.warn(
+          `[auth] JWT: DB tak terjangkau saat memuat user${code ? ` (${code})` : ""}: ${msg.split("\n")[0]}`
+        );
       }
       return token;
     },
