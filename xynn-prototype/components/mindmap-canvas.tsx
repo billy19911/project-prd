@@ -102,9 +102,22 @@ export function MindmapCanvas({
     setEdges(initialEdges);
   }, [initialEdges, setEdges]);
 
-  // Laporkan perubahan posisi ke parent (mode editable).
-  useEffect(() => {
+  /**
+   * Laporkan node ke parent HANYA saat pengguna mengubahnya (drag), bukan
+   * pada setiap render.
+   *
+   * ⚠️ Sebelumnya ini memakai `useEffect` yang bergantung pada `nodes`.
+   * Karena callback parent dibuat inline (referensi berubah tiap render),
+   * rantainya menjadi loop tak berujung:
+   *   parent render → callback baru → effect jalan → setNodes(parent) →
+   *   nodes parent baru → initialNodes baru → sinkron → effect jalan lagi …
+   * React berhenti dengan "Maximum update depth exceeded".
+   *
+   * Dengan melapor dari event, efek hanya berjalan pada interaksi nyata.
+   */
+  const handleNodeDragStop = useCallback(() => {
     if (!editable || !onNodesChangeExternal) return;
+    // `nodes` di sini adalah state terbaru setelah drag.
     onNodesChangeExternal(
       nodes.map((n) => ({
         id: n.id,
@@ -112,7 +125,7 @@ export function MindmapCanvas({
         position: n.position,
       }))
     );
-  }, [nodes, editable, onNodesChangeExternal]);
+  }, [editable, onNodesChangeExternal, nodes]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange<Node>[]) => {
@@ -131,6 +144,7 @@ export function MindmapCanvas({
         nodes={nodes}
         edges={edges}
         onNodesChange={handleNodesChange}
+        onNodeDragStop={handleNodeDragStop}
         onEdgesChange={(c: EdgeChange<Edge>[]) => editable && onEdgesChange(c)}
         fitView
         fitViewOptions={{ padding: 0.2 }}

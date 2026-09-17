@@ -26,6 +26,7 @@ import { StepIndicator } from "@/components/ui/step-indicator";
 import { useUpgrade } from "@/components/upgrade-provider";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { MindmapCanvas } from "@/components/mindmap-canvas";
+import { sameNodes } from "@/lib/mindmap-compare";
 import { cn } from "@/lib/utils";
 import { LOCALES, t, type Locale } from "@/lib/i18n";
 
@@ -95,6 +96,26 @@ export default function NewProjectWizard() {
     { id: string; data: { label: string }; position?: { x: number; y: number } }[]
   >([]);
   const [edges, setEdges] = useState<{ id: string; source: string; target: string }[]>([]);
+
+  /**
+   * Callback stabil untuk MindmapCanvas. WAJIB `useCallback`: bila dibuat
+   * inline, referensinya berubah setiap render dan (bersama efek di dalam
+   * canvas) memicu loop "Maximum update depth exceeded".
+   */
+  const handleMindmapNodesChange = useCallback(
+    (updated: { id: string; data?: { label?: string }; position?: { x: number; y: number } }[]) => {
+      setNodes((prev) => {
+        // Hindari setState bila tidak ada perubahan nyata (cegah render loop).
+        if (sameNodes(prev, updated)) return prev;
+        return updated.map((n) => ({
+          id: n.id,
+          data: { label: n.data?.label ?? "" },
+          position: n.position,
+        }));
+      });
+    },
+    []
+  );
 
   // Output
   const [prd, setPrd] = useState("");
@@ -642,15 +663,7 @@ export default function NewProjectWizard() {
                 nodes={nodes}
                 edges={edges}
                 editable
-                onNodesChangeExternal={(updated) =>
-                  setNodes(
-                    updated.map((n) => ({
-                      id: n.id,
-                      data: { label: n.data?.label ?? "" },
-                      position: n.position,
-                    }))
-                  )
-                }
+                onNodesChangeExternal={handleMindmapNodesChange}
                 height="h-[480px]"
               />
             )}
