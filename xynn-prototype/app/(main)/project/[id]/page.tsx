@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -35,6 +35,7 @@ import {
   ThemeEditor,
   applyThemeToHtml,
   DEFAULT_THEME,
+  themeFromStyleGuide,
   type ThemeTokens,
 } from "@/components/theme-editor";
 import { cn } from "@/lib/utils";
@@ -116,6 +117,14 @@ export default function ProjectDetailPage() {
   const { isPaid, canUsePrototype, prototypeQuotaLeft, canSaveThemes } = useSubscription();
   const [theme, setTheme] = useState<ThemeTokens>(DEFAULT_THEME);
 
+  // Token "awal" dari Style Guide — target Reset & fallback tema. Dihitung
+  // ulang saat style guide berubah, agar Reset selalu selaras dengan style
+  // guide terkini (mindmap→PRD→task→style→prototype tetap terhubung).
+  const styleGuideTheme = useMemo<ThemeTokens>(
+    () => themeFromStyleGuide(workspace?.styleGuideMd ?? null),
+    [workspace?.styleGuideMd]
+  );
+
   const load = () =>
     fetch("/api/workspace")
       .then((res) => (res.ok ? res.json() : Promise.reject()))
@@ -128,9 +137,12 @@ export default function ProjectDetailPage() {
           setCategory(ws.category || "");
           setIsPublic(ws.isPublic);
           setIsAnonymous(ws.isAnonymous);
-          // Muat tema tersimpan bila ada.
+          // Tema awal: pakai tema tersimpan bila ada; bila BELUM, ambil token
+          // dari Style Guide agar prototype konsisten dengan style guide.
           if (ws.themeTokensJson) {
             setTheme({ ...DEFAULT_THEME, ...(ws.themeTokensJson as Partial<ThemeTokens>) });
+          } else if (ws.styleGuideMd) {
+            setTheme(themeFromStyleGuide(ws.styleGuideMd));
           }
           // Mulai dari langkah terjauh yang sudah selesai.
           if (ws.prototypeHtml) setTab("prototype");
@@ -713,7 +725,7 @@ export default function ProjectDetailPage() {
           )}
 
           <Card>
-            <CardBody>
+            <CardBody className={cn(tab === "prototype" && "p-3 sm:p-3")}>
               {tab === "prd" &&
                 (workspace.fullPrdMd ? (
                   <MarkdownRenderer markdown={workspace.fullPrdMd} storageKey={`${id}-prd`} />
@@ -759,7 +771,7 @@ export default function ProjectDetailPage() {
                     className={cn(
                       "grid min-w-0 gap-4",
                       themePanelOpen
-                        ? "lg:grid-cols-[minmax(0,1fr)_300px]"
+                        ? "lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start"
                         : "lg:grid-cols-1"
                     )}
                   >
@@ -769,7 +781,7 @@ export default function ProjectDetailPage() {
                       screens={workspace.prototypeJson?.screens}
                       title={workspace.title}
                       busy={busy === "prototype"}
-                      height={themePanelOpen ? "h-[680px]" : "h-[820px]"}
+                      height={themePanelOpen ? "h-[calc(100dvh-13rem)] min-h-[520px]" : "h-[calc(100dvh-11rem)] min-h-[560px]"}
                       onRegenerate={() => generate("prototype")}
                       onRegenerateScreen={(label) => generate("prototype", label)}
                       onRestoreVersion={async (versionId) => {
@@ -795,7 +807,26 @@ export default function ProjectDetailPage() {
                     </div>
                     {themePanelOpen && (
                     <ThemeEditor
+                      className="lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto"
                       value={theme}
+                      resetTarget={styleGuideTheme}
+                      onReset={async (t) => {
+                        // Reset harus bertahan: simpan ke DB agar regenerate &
+                        // reload tidak mengembalikan tema lama.
+                        setWorkspace((prev) =>
+                          prev ? { ...prev, themeTokensJson: t } : null
+                        );
+                        const res = await fetch("/api/workspace/update", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ id, themeTokensJson: t }),
+                        });
+                        if (!res.ok) {
+                          toast.error("Gagal menyimpan reset tema");
+                          return;
+                        }
+                        toast.success("Tema di-reset ke token Style Guide");
+                      }}
                       onChange={setTheme}
                       canSaveLibrary={canSaveThemes}
                       onApplySaved={(t) => {

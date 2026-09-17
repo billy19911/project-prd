@@ -6,7 +6,12 @@ import { cn } from "@/lib/utils";
 import { DEFAULT_THEME, sanitizeThemeTokens, type ThemeTokens } from "@/lib/theme";
 
 // Token & sanitasi tinggal di `@/lib/theme` agar dapat diuji tanpa JSX.
-export { DEFAULT_THEME, applyThemeToHtml, sanitizeThemeTokens } from "@/lib/theme";
+export {
+  DEFAULT_THEME,
+  applyThemeToHtml,
+  sanitizeThemeTokens,
+  themeFromStyleGuide,
+} from "@/lib/theme";
 export type { ThemeTokens } from "@/lib/theme";
 
 const FONTS = [
@@ -43,6 +48,8 @@ export function ThemeEditor({
   onSave,
   canSaveLibrary = false,
   onApplySaved,
+  resetTarget,
+  onReset,
   className,
 }: {
   value: ThemeTokens;
@@ -56,6 +63,14 @@ export function ThemeEditor({
   canSaveLibrary?: boolean;
   /** Dipanggil saat pengguna memilih tema dari library (ENTERPRISE). */
   onApplySaved?: (tokens: ThemeTokens) => void;
+  /**
+   * Token "kembali ke awal" saat Reset. Idealnya token yang diekstrak dari
+   * Style Guide, agar Reset tidak meloncat ke tema aplikasi yang tak
+   * berhubungan. Bila kosong → DEFAULT_THEME.
+   */
+  resetTarget?: ThemeTokens;
+  /** Bila diberikan, Reset memanggil ini (mis. untuk menyimpan ke DB). */
+  onReset?: (tokens: ThemeTokens) => void | Promise<void>;
   className?: string;
 }) {
   const [saving, setSaving] = useState(false);
@@ -174,8 +189,15 @@ export function ThemeEditor({
         <span className="text-sm font-semibold text-foreground">Theme</span>
         <button
           type="button"
-          onClick={() => onChange({ ...DEFAULT_THEME })}
+          onClick={() => {
+            const target = resetTarget ?? DEFAULT_THEME;
+            onChange({ ...target });
+            // Bila parent menyediakan onReset, panggil agar tersimpan ke DB
+            // (mencegah tampilan "meloncat" setelah reload/regenerate).
+            if (onReset) void onReset({ ...target });
+          }}
           className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted transition-colors hover:text-foreground"
+          title="Kembalikan ke token dari Style Guide"
         >
           <RotateCcw className="h-3 w-3" />
           Reset

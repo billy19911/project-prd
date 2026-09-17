@@ -16,7 +16,7 @@ import {
 } from "@/lib/access";
 import { NextResponse } from "next/server";
 import { normalizeTechStack } from "@/lib/utils";
-import { sanitizeThemeTokens } from "@/lib/theme";
+import { sanitizeThemeTokens, themeFromStyleGuide } from "@/lib/theme";
 import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 /** Jumlah versi prototype yang disimpan per workspace. */
@@ -107,9 +107,12 @@ export async function POST(req: Request) {
   // Ikut model PRD yang ada (keputusan: satu model, bisa diubah dari /admin/ai-config).
   const model = aiConfig?.prdModel || "OpenCodeCombo";
   const systemPrompt = aiConfig?.systemPrompt || undefined;
+  // Tema: bila pengguna sudah menyimpan tema → pakai itu. Bila BELUM, ambil
+  // token dari Style Guide agar prototype KONSISTEN dengan style guide
+  // (bukan warna acak). Ini menjembatani style guide → prototype.
   const theme = workspace.themeTokensJson
     ? sanitizeThemeTokens(workspace.themeTokensJson)
-    : null;
+    : themeFromStyleGuide(workspace.styleGuideMd);
   const locale = (workspace.locale as "id" | "en") || "id";
 
   const existingScreens = extractScreens(workspace.prototypeHtml ?? "");
