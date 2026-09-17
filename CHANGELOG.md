@@ -30,6 +30,74 @@ timestamp migrasi Prisma).
 
 ---
 
+## [v1.4.0] — Organisasi Tim & Akses Workspace Berbasis Keanggotaan (17 Sep 2026)
+
+Fitur **kolaborasi tim ENTERPRISE**: satu organisasi bisa berisi beberapa
+anggota, dan workspace dapat dimiliki organisasi sehingga seluruh anggotanya
+mendapat akses — bukan hanya pembuatnya. Ini meluncurkan butir yang sebelumnya
+sengaja ditunda di `RENCANA-IMPLEMENTASI.md` §6.
+
+### Added
+
+- **Skema organisasi** (`prisma/schema.prisma` + migrasi
+  `20260917080457_organizations`): model `Organization`, `Membership`
+  (unik per `organizationId + userId`), `OrganizationInvite`, enum `OrgRole`
+  (OWNER/EDITOR/VIEWER) & `InviteStatus`, serta kolom `Workspace.organizationId`.
+- **`lib/workspace-access.ts`** — sumber tunggal aturan akses workspace:
+  `getWorkspaceAccess`, `workspaceAccessFilter`, `canCreateWorkspaceInOrg`,
+  `hasEnterpriseViaOrg`, `seatUsage`. Menggantikan pola `where: { userId }`
+  yang sebelumnya hanya mengizinkan pemilik.
+- **API `/api/org`** — buat & daftar tim (+ pemakaian seat); `?lite=1`
+  mengembalikan daftar ringkas untuk dropdown pembuatan proyek.
+- **API `/api/org/members`** — undang lewat email, ubah peran, keluarkan anggota
+  / batalkan undangan. Khusus OWNER.
+- **Halaman `/settings/team`** + entri tab di `settings-nav`.
+- **Workspace milik organisasi**: `POST /api/workspace` menerima
+  `organizationId` (divalidasi `canCreateWorkspaceInOrg`); dropdown "Tim
+  (opsional)" di wizard project baru.
+- **Auto-accept undangan** saat login (semua provider) untuk email yang Belum
+  punya akun sekalipun.
+
+### Changed
+
+- **Cek akses disebar** ke seluruh route AI & workspace (full-prd, mindmap,
+  prototype, questions, styleguide, tasks, update, delete, publish, versions,
+  restore, chat threads, CLI sync) — kini memakai `getWorkspaceAccess`
+  (pemilik pribadi ATAU anggota org sesuai peran), bukan `userId` saja.
+- **ENTERPRISE lewat organisasi**: anggota tim mendapat hak ENTERPRISE dari
+  langganan pemilik organisasi (`hasEnterpriseViaOrg`).
+
+### Fixed
+
+- **`/settings/team` salah mengunci anggota org.** Gate halaman memakai
+  `canSaveThemes` yang hanya membaca langganan **pribadi**, sehingga anggota
+  org ENTERPRISE justru melihat layar "khusus ENTERPRISE". Kini gate diambil
+  dari server (`/api/org` → 402), konsisten dengan `hasEnterpriseViaOrg`.
+- **Seat tim bisa dilampaui.** Penerimaan undangan saat login tidak memeriksa
+  batas seat, dan klaim undangan tidak atomik (race dua login). Kini seat
+  diperiksa saat menerima, dan undangan diklaim via `updateMany` berguard
+  `status: PENDING`.
+- **Undangan `ACCEPTED` bisa terbuka kembali.** `upsert` lama menimpa status
+  menjadi `PENDING` saat mengundang ulang; kini ditolak sebagai "sudah anggota"
+  dan undangan email sendiri tidak dihitung ganda terhadap seat.
+- **OWNER org tidak bisa menghapus workspace org.** `DELETE /api/workspace/delete`
+  masih menyimpan cek `workspace.userId !== userId` yang redundan; dihapus
+  karena `access.canManage` sudah mencakup OWNER org.
+- **Body JSON rusak → 500.** Beberapa route memakai `await req.json()` tanpa
+  `.catch()`; kini mengembalikan 400.
+- **Bisa ada dua OWNER** via `PATCH` anggota; kini promosi OWNER kedua ditolak
+  agar satu sumber kebenaran (`Organization.ownerId`).
+
+### Known limitations (keputusan yang diambil)
+
+- **Kuota fitur AI tetap per-pengguna.** Anggota tim memakai kuota & tier dari
+  langganan **pribadinya**, bukan langganan organisasi. Biaya AI dibebankan ke
+  pengguna yang men-generate (`recordAiUsage(userId, ...)`).
+- **Thread chat milik pengguna**, bukan organisasi — kolaborator tidak berbagi
+  thread chat meski keduanya mengakses workspace org yang sama.
+
+---
+
 ## [v1.3.0] — Perbaikan Celah Fungsional Prototype (16 Sep 2026)
 
 Menutup tiga celah yang ditemukan setelah Fase 2 selesai. Ketiganya adalah
