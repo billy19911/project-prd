@@ -1,12 +1,13 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { loginErrorInfo, type LoginErrorInfo } from "@/lib/login-error";
 
 export default function LoginClient({
   error,
@@ -18,6 +19,34 @@ export default function LoginClient({
   const [loading, setLoading] = useState(false);
   const [demoEmail, setDemoEmail] = useState("");
   const [demoLoading, setDemoLoading] = useState(false);
+  const [info, setInfo] = useState<LoginErrorInfo | null>(() =>
+    loginErrorInfo(error)
+  );
+
+  // NextAuth menyamakan "kredensial salah" dan "server tak terjangkau"
+  // sebagai `CredentialsSignin`. Bila itu penyebabnya, cek kesehatan DB agar
+  // pesannya akurat (bukan menyalahkan input padahal server yang mati).
+  useEffect(() => {
+    if (error !== "CredentialsSignin") return;
+    let active = true;
+    fetch("/api/health/db")
+      .then((r) => {
+        if (!active) return;
+        if (r.status === 503) {
+          setInfo({
+            message: "Server sedang tidak dapat dihubungi.",
+            hint: "Database tidak terjangkau. Coba lagi sebentar lagi.",
+            serverSide: true,
+          });
+        }
+      })
+      .catch(() => {
+        /* kegagalan cek kesehatan bukan hal fatal untuk UI */
+      });
+    return () => {
+      active = false;
+    };
+  }, [error]);
 
   // Selalu lewat /post-login agar admin diarahkan ke /admin, user ke tujuan.
   const callbackUrl = intended
@@ -56,10 +85,10 @@ export default function LoginClient({
             Kelola workspace &amp; PRD komunitas Anda.
           </p>
 
-          {error && (
+          {info && (
             <div className="mt-5 rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-              Google OAuth gagal. Pastikan callback URL sudah terdaftar di Google
-              Cloud Console.
+              <p className="font-medium">{info.message}</p>
+              {info.hint && <p className="mt-1 text-danger/80">{info.hint}</p>}
             </div>
           )}
 
