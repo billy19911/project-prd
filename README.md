@@ -128,9 +128,11 @@ project-prd/                      # akar repositori
     │   │   ├── new-project/      # Wizard 5 langkah
     │   │   ├── project/[id]/     # Workspace + tab (Mindmap·PRD·Task·Style·Prototype)
     │   │   ├── prototype/        # Galeri prototype lintas project
-    │   │   ├── chat/             # 🚧 Chat Prototype (rangka UI, belum terhubung AI)
+    │   │   ├── templates/        # Galeri template PRD siap pakai
+    │   │   ├── chat/             # Chat Prototype (AI) — dikunci via flag
+    │   │   ├── consult/          # Konsultasi AI (arsitektur) — dikunci via flag
     │   │   ├── vault/            # Gudang PRD
-    │   │   └── settings/         # plan · profile · developer
+    │   │   └── settings/         # plan · team · profile · developer
     │   ├── (public)/prd/[shareSlug]/  # Halaman PRD publik 3 kolom
     │   ├── (admin)/admin/        # Dashboard admin (RBAC)
     │   ├── api/                  # 33 endpoint (lihat Referensi API)
@@ -146,6 +148,9 @@ project-prd/                      # akar repositori
     ├── tests/
     │   ├── access.test.mjs       # Uji gate hak akses & kuota
     │   ├── theme.test.mjs        # Uji sanitasi token tema
+    │   ├── workspace-access.test.mjs  # Uji akses workspace org
+    │   ├── feature-flags.test.mjs     # Uji logika flag rilis fitur
+    │   ├── consult-prompt.test.mjs    # Uji prompt konsultasi
     │   └── prompt.test.mjs       # Uji prompt generator prototype
     └── types/next-auth.d.ts      # Augmentasi tipe sesi
 ```
@@ -740,7 +745,17 @@ Proyek privat (`"private": true`), versi `0.1.0`.
 | CLI Sync | ✅ Selesai |
 | **Prototype Design + Theme Editor** | Selesai (PRO ke atas) |
 | **Langganan 4 tier (Enterprise)** | Selesai |
-| Chat Prototype (`/chat`) | Rangka UI - belum terhubung AI |
+| **Organisasi Tim + akses workspace** | Selesai (ENTERPRISE) |
+| **Template PRD siap pakai** | Selesai (berbayar) |
+| **Konsultasi AI (`/consult`)** | Selesai — dikunci (Segera Hadir, lihat Flag Rilis) |
+| Chat Prototype (`/chat`) | Selesai — terkunci AI, dikunci (Segera Hadir) |
+| **Flag rilis fitur (`/admin/features`)** | Selesai (LIVE/SOON/HIDDEN di DB) |
+
+> **Catatan — Flag Rilis Fitur.** Fitur bisa dibangun penuh tapi tetap
+> ditampilkan "Segera Hadir" (SOON) atau disembunyikan (HIDDEN) tanpa deploy,
+> diatur dari `/admin/features`. Saat bukan LIVE, halaman menampilkan layar
+> "Segera Hadir" dan **API-nya diblokir (403)**. Status awal: `consult` &
+> `chat` = SOON.
 
 Lihat [`CHANGELOG.md`](./CHANGELOG.md) untuk riwayat lengkap dan
 [`XynnPROtotype.md`](./XynnPROtotype.md) untuk spesifikasi produk.
