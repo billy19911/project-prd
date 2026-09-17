@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { generateMindmapWithAI } from "@/lib/ai";
 import { normalizeTechStack } from "@/lib/utils";
 import { NextResponse } from "next/server";
+import { recordAiUsage } from "@/lib/ai-usage";
 
 interface SessionUser {
   id: string;
@@ -66,17 +67,9 @@ export async function POST(req: Request) {
     data: { mindmapJson: mindmap },
   });
 
-  await prisma.aiUsage.create({
-    data: {
-      userId: user.id,
-      kind: "mindmap",
-      model: usage.model,
-      promptTokens: usage.promptTokens,
-      completionTokens: usage.completionTokens,
-      totalTokens: usage.totalTokens,
-      costUsd: usage.costUsd,
-    },
-  });
+  // Pakai recordAiUsage agar `usage` yang null (saat AI gagal) tidak
+  // menyebabkan crash saat mengakses usage.model.
+  await recordAiUsage(user.id, "mindmap", usage);
 
   return NextResponse.json(mindmap);
 }

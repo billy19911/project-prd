@@ -235,7 +235,7 @@ model AiConfig {
 model AiUsage {
   id               String   @id @default(uuid())
   userId           String?
-  kind             String   // 'mindmap' | 'prd' | 'questions'
+  kind             String   // 'mindmap'|'prd'|'questions'|'tasks'|'styleguide'|'techstack'|'prototype'|'chat'
   model            String
   promptTokens     Int      @default(0)
   completionTokens Int      @default(0)

@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateQuestionsWithAI } from "@/lib/ai";
 import { normalizeTechStack } from "@/lib/utils";
+import { recordAiUsage } from "@/lib/ai-usage";
 
 interface SessionUser {
   id: string;
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
   const model = aiConfig?.mindmapModel || "OpenCodeCombo";
   const systemPrompt = aiConfig?.systemPrompt || undefined;
 
-  const { questions } = await generateQuestionsWithAI(
+  const { questions, usage } = await generateQuestionsWithAI(
     workspace.title,
     workspace.description || "",
     normalizeTechStack(workspace.techStack),
@@ -41,6 +42,10 @@ export async function GET(req: Request) {
     systemPrompt,
     (workspace.locale as "id" | "en") || "id"
   );
+
+  // Sebelumnya `usage` dibuang, sehingga biaya AI untuk langkah ini tidak
+  // tercatat dan widget AI Cost & Margin Health di /admin jadi tidak akurat.
+  await recordAiUsage(user.id, "questions", usage);
 
   return Response.json({ questions });
 }

@@ -5,6 +5,7 @@ import { generatePRDWithAI } from "@/lib/ai";
 import { normalizeTechStack } from "@/lib/utils";
 import { canGeneratePrd, isPaid } from "@/lib/access";
 import { NextResponse } from "next/server";
+import { recordAiUsage } from "@/lib/ai-usage";
 
 interface SessionUser {
   id: string;
@@ -72,17 +73,9 @@ export async function POST(req: Request) {
     data: { prdUsedThisMonth: { increment: 1 } },
   });
 
-  await prisma.aiUsage.create({
-    data: {
-      userId: user.id,
-      kind: "prd",
-      model: usage.model,
-      promptTokens: usage.promptTokens,
-      completionTokens: usage.completionTokens,
-      totalTokens: usage.totalTokens,
-      costUsd: usage.costUsd,
-    },
-  });
+  // Pakai recordAiUsage agar `usage` yang null (saat AI gagal) tidak
+  // menyebabkan crash saat mengakses usage.model.
+  await recordAiUsage(user.id, "prd", usage);
 
   return NextResponse.json({ prd });
 }
