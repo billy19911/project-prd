@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 /**
  * Hapus project milik creator. Hanya pemilik yang bisa menghapus.
@@ -14,6 +15,17 @@ export async function DELETE(req: Request) {
   const { id } = await req.json();
 
   if (!id) return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
+
+  const access = await getWorkspaceAccess(id, userId);
+  if (!access.canView) {
+    return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+  }
+  if (!access.canManage) {
+    return NextResponse.json(
+      { error: "Hanya pemilik yang dapat menghapus workspace." },
+      { status: 403 }
+    );
+  }
 
   const workspace = await prisma.workspace.findUnique({
     where: { id },

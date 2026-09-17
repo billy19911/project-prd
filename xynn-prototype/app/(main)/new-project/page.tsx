@@ -73,6 +73,10 @@ export default function NewProjectWizard() {
   const [title, setTitle] = useState("");
   const [idea, setIdea] = useState("");
 
+  // Tim (opsional) — hanya muncul bila user anggota org dengan hak menambah.
+  const [orgs, setOrgs] = useState<{ id: string; name: string; myRole: string }[]>([]);
+  const [orgId, setOrgId] = useState<string>("");
+
   // Step 2
   const [tech, setTech] = useState<TechPrefs>({
     mode: "ai",
@@ -118,7 +122,13 @@ export default function NewProjectWizard() {
       const res = await fetch("/api/workspace", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description: idea, techStack: [], locale }),
+        body: JSON.stringify({
+          title,
+          description: idea,
+          techStack: [],
+          locale,
+          organizationId: orgId || undefined,
+        }),
       });
 
       if (res.status === 402) {
@@ -140,7 +150,7 @@ export default function NewProjectWizard() {
     } finally {
       setBusy(null);
     }
-  }, [title, idea, locale, upgrade]);
+  }, [title, idea, locale, upgrade, orgId]);
 
   /* ---------- Step 2: tech prefs ---------- */
   const saveTechAndContinue = useCallback(async () => {
@@ -298,6 +308,25 @@ export default function NewProjectWizard() {
     });
   }, []);
 
+  // Muat tim yang bisa dipakai membuat workspace. Gagal (mis. bukan ENTERPRISE)
+  // bukan masalah — dropdown cukup tidak muncul.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/org?lite=1");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (active) setOrgs(Array.isArray(data) ? data : []);
+      } catch {
+        /* diamkan */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       {/* Progress */}
@@ -344,6 +373,25 @@ export default function NewProjectWizard() {
             </div>
             <p className="text-[11px] text-muted">{L.langHint}</p>
           </div>
+
+          {/* Team selector — hanya muncul bila user bisa membuat proyek tim */}
+          {orgs.length > 0 && (
+            <div className="space-y-2">
+              <Field label="Tim (opsional)">
+                <Select value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+                  <option value="">Pribadi (hanya saya)</option>
+                  {orgs.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <p className="text-[11px] text-muted">
+                Bila memilih tim, seluruh anggota tim dapat melihat proyek ini.
+              </p>
+            </div>
+          )}
 
           {/* Idea input */}
           <div className="space-y-4 rounded-2xl border border-border bg-surface/40 p-5">

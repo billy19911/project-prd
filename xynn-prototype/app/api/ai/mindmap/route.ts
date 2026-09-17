@@ -5,6 +5,7 @@ import { generateMindmapWithAI } from "@/lib/ai";
 import { normalizeTechStack } from "@/lib/utils";
 import { NextResponse } from "next/server";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 interface SessionUser {
   id: string;
@@ -31,8 +32,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
   }
 
+  const access = await getWorkspaceAccess(id, user.id);
+  if (!access.canView) {
+    return NextResponse.json({ error: "Workspace tidak ditemukan" }, { status: 404 });
+  }
+  if (!access.canEdit) {
+    return NextResponse.json(
+      { error: "Anda hanya punya akses lihat pada workspace ini." },
+      { status: 403 }
+    );
+  }
+
   const workspace = await prisma.workspace.findUnique({
-    where: { id, userId: user.id },
+    where: { id },
     select: {
       title: true,
       description: true,
@@ -63,7 +75,7 @@ export async function POST(req: Request) {
   );
 
   await prisma.workspace.update({
-    where: { id, userId: user.id },
+    where: { id },
     data: { mindmapJson: mindmap },
   });
 

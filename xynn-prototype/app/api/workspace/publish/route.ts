@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 interface SessionUser {
   id: string;
@@ -20,8 +21,19 @@ export async function POST(req: Request) {
   const user = session.user as SessionUser;
   const { id, isPublic, isAnonymous, category } = await req.json();
 
+  const access = await getWorkspaceAccess(id, user.id);
+  if (!access.canView) {
+    return NextResponse.json({ error: "Workspace tidak ditemukan" }, { status: 404 });
+  }
+  if (!access.canEdit) {
+    return NextResponse.json(
+      { error: "Anda hanya punya akses lihat pada workspace ini." },
+      { status: 403 }
+    );
+  }
+
   const workspace = await prisma.workspace.findUnique({
-    where: { id, userId: user.id },
+    where: { id },
   });
 
   if (!workspace) {
@@ -34,7 +46,7 @@ export async function POST(req: Request) {
   }
 
   const updated = await prisma.workspace.update({
-    where: { id, userId: user.id },
+    where: { id },
     data: {
       isPublic,
       isAnonymous: isPublic ? isAnonymous : false,

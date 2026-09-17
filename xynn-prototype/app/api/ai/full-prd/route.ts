@@ -6,6 +6,7 @@ import { normalizeTechStack } from "@/lib/utils";
 import { canGeneratePrd, isPaid } from "@/lib/access";
 import { NextResponse } from "next/server";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 interface SessionUser {
   id: string;
@@ -40,8 +41,19 @@ export async function POST(req: Request) {
     );
   }
 
+  const access = await getWorkspaceAccess(id, user.id);
+  if (!access.canView) {
+    return NextResponse.json({ error: "Workspace tidak ditemukan" }, { status: 404 });
+  }
+  if (!access.canEdit) {
+    return NextResponse.json(
+      { error: "Anda hanya punya akses lihat pada workspace ini." },
+      { status: 403 }
+    );
+  }
+
   const workspace = await prisma.workspace.findUnique({
-    where: { id, userId: user.id },
+    where: { id },
   });
 
   if (!workspace) {
@@ -64,7 +76,7 @@ export async function POST(req: Request) {
   );
 
   await prisma.workspace.update({
-    where: { id, userId: user.id },
+    where: { id },
     data: { fullPrdMd: prd },
   });
 

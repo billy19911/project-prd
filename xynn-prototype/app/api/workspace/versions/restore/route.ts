@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 interface SessionUser {
   id: string;
@@ -29,11 +30,27 @@ export async function POST(req: Request) {
 
   const version = await prisma.prototypeVersion.findUnique({
     where: { id: versionId },
-    include: { workspace: { select: { id: true, userId: true, prototypeHtml: true, prototypeJson: true } } },
+    include: {
+      workspace: {
+        select: { id: true, userId: true, prototypeHtml: true, prototypeJson: true },
+      },
+    },
   });
 
-  if (!version || version.workspace.userId !== userId) {
+  if (!version) {
     return NextResponse.json({ error: "Versi tidak ditemukan" }, { status: 404 });
+  }
+
+  // Pemulihan mengubah data workspace -> butuh hak edit, bukan sekadar lihat.
+  const access = await getWorkspaceAccess(version.workspace.id, userId);
+  if (!access.canView) {
+    return NextResponse.json({ error: "Versi tidak ditemukan" }, { status: 404 });
+  }
+  if (!access.canEdit) {
+    return NextResponse.json(
+      { error: "Anda hanya punya akses lihat pada workspace ini." },
+      { status: 403 }
+    );
   }
 
   const ws = version.workspace;

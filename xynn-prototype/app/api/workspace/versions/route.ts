@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 interface SessionUser {
   id: string;
@@ -22,12 +23,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
   }
 
-  // Pastikan workspace milik pengguna sebelum mengintip versinya.
-  const owned = await prisma.workspace.findFirst({
-    where: { id: workspaceId, userId },
-    select: { id: true },
-  });
-  if (!owned) {
+  // Pastikan workspace dapat diakses pengguna (pemilik atau anggota org)
+  // sebelum mengintip versinya.
+  const access = await getWorkspaceAccess(workspaceId, userId);
+  if (!access.canView) {
     return NextResponse.json({ error: "Workspace tidak ditemukan" }, { status: 404 });
   }
 

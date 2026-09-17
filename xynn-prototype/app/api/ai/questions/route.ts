@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { generateQuestionsWithAI } from "@/lib/ai";
 import { normalizeTechStack } from "@/lib/utils";
 import { recordAiUsage } from "@/lib/ai-usage";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 interface SessionUser {
   id: string;
@@ -22,8 +23,13 @@ export async function GET(req: Request) {
     return Response.json({ error: "Missing workspace id" }, { status: 400 });
   }
 
+  const access = await getWorkspaceAccess(id, user.id);
+  if (!access.canView) {
+    return Response.json({ error: "Workspace tidak ditemukan" }, { status: 404 });
+  }
+
   const workspace = await prisma.workspace.findUnique({
-    where: { id, userId: user.id },
+    where: { id },
   });
 
   if (!workspace) {

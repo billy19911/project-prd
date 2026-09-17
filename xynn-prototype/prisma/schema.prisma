@@ -31,6 +31,72 @@ enum BillingCycle {
   YEARLY
 }
 
+/// Peran anggota dalam sebuah organisasi.
+enum OrgRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+/// Status undangan anggota.
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+/// Organisasi tim — wadah kolaborasi (fitur ENTERPRISE).
+/// Workspace dapat dimiliki organisasi, sehingga seluruh anggotanya
+/// mendapat akses, bukan hanya pembuatnya.
+model Organization {
+  id           String             @id @default(uuid())
+  name         String
+  slug         String             @unique
+  ownerId      String
+  owner        User               @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Jumlah seat yang diizinkan. Default 3 sesuai paket Enterprise.
+  seatLimit    Int                @default(3)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  members      Membership[]
+  invites      OrganizationInvite[]
+  workspaces   Workspace[]
+
+  @@index([ownerId])
+}
+
+/// Keanggotaan user di organisasi (1 user = 1 peran per organisasi).
+model Membership {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           OrgRole      @default(VIEWER)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+/// Undangan anggota. Bila email belum terdaftar, undangan tetap PENDING
+/// dan aktif otomatis saat orang itu login (dicek di callback auth).
+model OrganizationInvite {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           OrgRole      @default(VIEWER)
+  status         InviteStatus @default(PENDING)
+  invitedById    String?
+  createdAt      DateTime     @default(now())
+  respondedAt    DateTime?
+
+  @@unique([organizationId, email])
+  @@index([email, status])
+}
+
 model Plan {
   id              String   @id @default(uuid())
   code            String   @unique // 'FREE' | 'STARTER' | 'PRO' (map ke PlanType)
@@ -64,6 +130,8 @@ model User {
   transactions  Transaction[]
   savedThemes   SavedTheme[]
   chatThreads   ChatThread[]
+  ownedOrgs     Organization[]       @relation("OrgOwner")
+  memberships   Membership[]
 }
 
 model Subscription {
@@ -90,6 +158,10 @@ model Workspace {
   id                  String       @id @default(uuid())
   userId              String
   user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Bila diisi, workspace ini milik organisasi dan dapat diakses
+  /// seluruh anggotanya. `userId` tetap dipertahankan sebagai pembuat.
+  organizationId      String?
+  organization        Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   title               String
   description         String?
   locale              String       @default("id") // 'id' | 'en' — bahasa output AI

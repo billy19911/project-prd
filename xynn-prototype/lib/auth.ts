@@ -17,6 +17,54 @@ function isAdminEmail(email: string): boolean {
   return adminEmails.includes(email.toLowerCase());
 }
 
+/**
+ * Terima semua undangan tim yang tertunda untuk email ini.
+ *
+ * Dipanggil saat login. Idempoten: undangan yang sudah ACCEPTED tidak
+ * disentuh lagi, dan keanggotaan yang sudah ada tidak diduplikasi.
+ * Kegagalan di sini TIDAK boleh menggagalkan login.
+ */
+async function acceptPendingInvites(email: string | null | undefined): Promise<void> {
+  if (!email) return;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (!user) return;
+
+    const invites = await prisma.organizationInvite.findMany({
+      where: { email, status: "PENDING" },
+      select: { id: true, organizationId: true, role: true },
+    });
+    if (invites.length === 0) return;
+
+    for (const inv of invites) {
+      await prisma.membership.upsert({
+        where: {
+          organizationId_userId: {
+            organizationId: inv.organizationId,
+            userId: user.id,
+          },
+        },
+        update: {},
+        create: {
+          organizationId: inv.organizationId,
+          userId: user.id,
+          role: inv.role,
+        },
+      });
+      await prisma.organizationInvite.update({
+        where: { id: inv.id },
+        data: { status: "ACCEPTED", respondedAt: new Date() },
+      });
+    }
+  } catch (error) {
+    // Jangan blokir login karena masalah undangan.
+    console.error("[auth] Gagal memproses undangan tim:", error);
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     ...(hasGoogle
@@ -117,6 +165,10 @@ export const authOptions: NextAuthOptions = {
           return false;
         }
       }
+      // Aktifkan undangan tim yang tertunda untuk email ini. Dijalankan untuk
+      // SEMUA provider (Google & kredensial) agar undangan ke orang yang belum
+      // punya akun tetap terpasang saat mereka pertama kali login.
+      await acceptPendingInvites(user.email);
       return true;
     },
     async jwt({ token, user }) {

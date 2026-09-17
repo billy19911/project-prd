@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeTechStack } from "@/lib/utils";
 import { sanitizeThemeTokens } from "@/lib/theme";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 interface SessionUser {
   id: string;
@@ -44,8 +45,21 @@ export async function POST(req: Request) {
     data.themeTokensJson = sanitizeThemeTokens(themeTokensJson);
   }
 
+  // Cek hak akses: pemilik pribadi ATAU anggota org dengan peran yang boleh
+  // mengubah. Viewer tidak boleh.
+  const access = await getWorkspaceAccess(id, user.id);
+  if (!access.canView) {
+    return Response.json({ error: "Workspace not found" }, { status: 404 });
+  }
+  if (!access.canEdit) {
+    return Response.json(
+      { error: "Anda hanya punya akses lihat pada workspace ini." },
+      { status: 403 }
+    );
+  }
+
   const updated = await prisma.workspace.updateMany({
-    where: { id, userId: user.id },
+    where: { id },
     data,
   });
 
@@ -53,9 +67,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Workspace not found" }, { status: 404 });
   }
 
-  const workspace = await prisma.workspace.findFirst({
-    where: { id, userId: user.id },
-  });
+  const workspace = await prisma.workspace.findUnique({ where: { id } });
 
   return Response.json({
     success: true,

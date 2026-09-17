@@ -6,6 +6,7 @@ import { recordAiUsage } from "@/lib/ai-usage";
 import { canGenerateAdvanced } from "@/lib/access";
 import { NextResponse } from "next/server";
 import { normalizeTechStack } from "@/lib/utils";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 /**
  * Generate task breakdown dari PRD workspace. Khusus paket berbayar.
@@ -28,8 +29,19 @@ export async function POST(req: Request) {
     );
   }
 
+  const access = await getWorkspaceAccess(id, userId);
+  if (!access.canView) {
+    return NextResponse.json({ error: "Workspace tidak ditemukan" }, { status: 404 });
+  }
+  if (!access.canEdit) {
+    return NextResponse.json(
+      { error: "Anda hanya punya akses lihat pada workspace ini." },
+      { status: 403 }
+    );
+  }
+
   const workspace = await prisma.workspace.findUnique({
-    where: { id, userId },
+    where: { id },
     select: {
       title: true,
       fullPrdMd: true,
@@ -59,7 +71,7 @@ export async function POST(req: Request) {
   );
 
   await prisma.workspace.update({
-    where: { id, userId },
+    where: { id },
     data: { tasksJson: groups },
   });
 

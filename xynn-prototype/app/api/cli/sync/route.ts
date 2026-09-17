@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeTechStack } from "@/lib/utils";
 import { canUseCli } from "@/lib/access";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 import crypto from "crypto";
 
 export async function GET(req: Request) {
@@ -37,8 +38,14 @@ export async function GET(req: Request) {
     );
   }
 
-  const workspace = await prisma.workspace.findFirst({
-    where: { id: workspaceId, userId: apiKeyRecord.userId },
+  // Workspace harus milik pemilik API key ATAU organisasi tempat ia anggota.
+  const access = await getWorkspaceAccess(workspaceId, apiKeyRecord.userId);
+  if (!access.canView) {
+    return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+  }
+
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
   });
 
   if (!workspace) {

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canUsePrototype } from "@/lib/access";
+import { getWorkspaceAccess } from "@/lib/workspace-access";
 
 interface SessionUser {
   id: string;
@@ -72,13 +73,11 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const workspaceId = typeof body?.workspaceId === "string" ? body.workspaceId : null;
 
-  // Bila workspace ditautkan, pastikan milik pengguna.
+  // Bila workspace ditautkan, pastikan pengguna boleh mengeditnya
+  // (pemilik pribadi atau anggota org dengan peran edit).
   if (workspaceId) {
-    const owned = await prisma.workspace.findFirst({
-      where: { id: workspaceId, userId },
-      select: { id: true },
-    });
-    if (!owned) {
+    const access = await getWorkspaceAccess(workspaceId, userId);
+    if (!access.canEdit) {
       return NextResponse.json({ error: "Workspace tidak ditemukan" }, { status: 404 });
     }
   }
