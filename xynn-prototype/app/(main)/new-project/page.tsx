@@ -327,6 +327,50 @@ export default function NewProjectWizard() {
     };
   }, []);
 
+  // Prefill dari template (?template=slug). Hanya mengisi field yang masih
+  // kosong agar tidak menimpa ketikan pengguna bila ia sudah mulai mengisi.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const slug = new URLSearchParams(window.location.search).get("template");
+    if (!slug) return;
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/templates?slug=${encodeURIComponent(slug)}`);
+        if (!res.ok) return;
+        const tpl = await res.json();
+        if (!active) return;
+        setTitle((prev) => prev || tpl.title || "");
+        setIdea((prev) => prev || tpl.idea || "");
+        if (tpl.locale === "en" || tpl.locale === "id") {
+          setLocale((prev) => prev || tpl.locale);
+        }
+        // Bila template menyertakan tepat 4 teknologi (urutan: frontend,
+        // backend, database, deployment), prefill mode manual. Kalau tidak,
+        // biarkan mode AI memilih agar tidak salah memetakan.
+        const stack: string[] = Array.isArray(tpl.techStack) ? tpl.techStack : [];
+        if (stack.length === 4) {
+          setTech((prev) =>
+            prev.frontend || prev.backend || prev.database || prev.deployment
+              ? prev
+              : {
+                  mode: "manual",
+                  frontend: stack[0],
+                  backend: stack[1],
+                  database: stack[2],
+                  deployment: stack[3],
+                }
+          );
+        }
+      } catch {
+        /* diamkan */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       {/* Progress */}

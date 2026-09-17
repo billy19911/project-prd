@@ -14,6 +14,7 @@ import {
   Globe,
   Lock,
   Trash2,
+  LayoutTemplate,
 } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -122,6 +123,16 @@ export default function ProjectsHubPage() {
           <Sparkles className="hidden h-16 w-16 shrink-0 text-accent/20 sm:block" />
         </div>
       </button>
+
+      {/* Alternatif: mulai dari template */}
+      <Link
+        href="/templates"
+        className="group flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border px-4 py-3 text-sm text-muted transition-colors hover:border-accent/40 hover:text-foreground"
+      >
+        <LayoutTemplate className="h-4 w-4" />
+        Atau mulai dari template siap pakai
+        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+      </Link>
 
       {/* History */}
       <section>

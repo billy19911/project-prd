@@ -62,7 +62,7 @@ export const PRODUCTS: Product[] = [
     description:
       "Gunakan template PRD siap pakai dari database untuk menghemat token. Eksklusif untuk pelanggan berbayar.",
     href: "/templates",
-    status: "soon",
+    status: "active",
     requiresAuth: true,
     requiresPaid: true,
     accent: "from-emerald-500/25",

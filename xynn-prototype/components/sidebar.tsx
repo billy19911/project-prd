@@ -4,13 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { LayoutDashboard, Sparkles, Search, Settings, LogOut, Menu, X, Shield, MonitorSmartphone, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Sparkles, Search, Settings, LogOut, Menu, X, Shield, MonitorSmartphone, MessageSquare, LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Bikin Project", icon: Sparkles },
+  { href: "/templates", label: "Template PRD", icon: LayoutTemplate },
   { href: "/prototype", label: "Prototype", icon: MonitorSmartphone },
   { href: "/chat", label: "Chat Prototype", icon: MessageSquare },
   { href: "/vault", label: "Gudang PRD", icon: Search },

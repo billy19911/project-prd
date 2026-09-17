@@ -261,6 +261,32 @@ model SavedTheme {
   @@index([userId])
 }
 
+/// Template PRD siap pakai — fitur berbayar (STARTER ke atas).
+/// Menghemat token: ide dasar, stack, dan kategori sudah terisi sehingga
+/// wizard tidak mulai dari nol. Dikelola admin lewat seed / Prisma Studio.
+model Template {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String
+  description String
+  /// Kategori untuk filter di galeri: 'saas' | 'ecommerce' | 'mobile' | 'internal' | ...
+  category    String
+  /// Emoji atau nama ikon lucide untuk ditampilkan di kartu.
+  icon        String   @default("Sparkles")
+  /// Ide awal (starter prompt) yang mengisi field "ide aplikasi" di wizard.
+  idea        String
+  /// Tech stack awal; kosong = biarkan AI memilih.
+  techStack   String[] @default([])
+  locale      String   @default("id")
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive, sortOrder])
+}
+
 model PaymentConfig {
   id                  String   @id @default(uuid())
   provider            String

@@ -1,4 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import {
+  NO_ACCESS,
+  resolveWorkspaceAccess,
+  roleCanCreateWorkspace,
+  type OrgRole,
+  type WorkspaceAccess,
+} from "@/lib/workspace-access-core";
 
 /**
  * Akses workspace berbasis keanggotaan organisasi.
@@ -10,40 +17,14 @@ import { prisma } from "@/lib/prisma";
  *
  * Semua akses workspace sebaiknya lewat helper ini agar aturannya satu tempat
  * dan tidak tersebar (dan tidak mudah lupa).
+ *
+ * Logika keputusan murni ada di `workspace-access-core.ts` (bisa diuji tanpa
+ * database); modul ini hanya menjembatani Prisma → keputusan.
  */
 
-export type OrgRole = "OWNER" | "EDITOR" | "VIEWER";
-
-export type WorkspaceAccess = {
-  /** Boleh melihat & membaca. */
-  canView: boolean;
-  /** Boleh mengubah / generate (mengubah data). */
-  canEdit: boolean;
-  /** Boleh mengelola anggota, seat, dan menghapus workspace. */
-  canManage: boolean;
-  /** Peran efektif pengguna pada workspace ini. */
-  role: OrgRole | "OWNER_PERSONAL";
-  /** Apakah workspace ini milik organisasi. */
-  isOrgWorkspace: boolean;
-};
-
-const NONE: WorkspaceAccess = {
-  canView: false,
-  canEdit: false,
-  canManage: false,
-  role: "VIEWER",
-  isOrgWorkspace: false,
-};
-
-/** Peran yang boleh mengubah data. */
-export function roleCanEdit(role: OrgRole): boolean {
-  return role === "OWNER" || role === "EDITOR";
-}
-
-/** Peran yang boleh mengelola anggota & seat. */
-export function roleCanManage(role: OrgRole): boolean {
-  return role === "OWNER";
-}
+// Re-ekspor agar pemanggil lama tetap bekerja.
+export type { OrgRole, WorkspaceAccess };
+export { roleCanEdit, roleCanManage } from "@/lib/workspace-access-core";
 
 /**
  * Apakah user boleh membuat workspace baru di dalam organisasi ini.
@@ -58,7 +39,7 @@ export async function canCreateWorkspaceInOrg(
     where: { organizationId_userId: { organizationId, userId } },
     select: { role: true },
   });
-  return !!membership && roleCanEdit(membership.role as OrgRole);
+  return !!membership && roleCanCreateWorkspace(membership.role as OrgRole);
 }
 
 /**
@@ -77,20 +58,14 @@ export async function getWorkspaceAccess(
     where: { id: workspaceId },
     select: { id: true, userId: true, organizationId: true },
   });
-  if (!ws) return NONE;
+  if (!ws) return NO_ACCESS;
 
   // Pemilik pribadi — akses penuh walau workspace-nya milik organisasi.
   if (ws.userId === userId) {
-    return {
-      canView: true,
-      canEdit: true,
-      canManage: true,
-      role: "OWNER_PERSONAL",
-      isOrgWorkspace: !!ws.organizationId,
-    };
+    return resolveWorkspaceAccess(ws, userId, null);
   }
 
-  if (!ws.organizationId) return NONE;
+  if (!ws.organizationId) return NO_ACCESS;
 
   const membership = await prisma.membership.findUnique({
     where: {
@@ -98,16 +73,12 @@ export async function getWorkspaceAccess(
     },
     select: { role: true },
   });
-  if (!membership) return NONE;
 
-  const role = membership.role as OrgRole;
-  return {
-    canView: true,
-    canEdit: roleCanEdit(role),
-    canManage: roleCanManage(role),
-    role,
-    isOrgWorkspace: true,
-  };
+  return resolveWorkspaceAccess(
+    ws,
+    userId,
+    (membership?.role as OrgRole) ?? null
+  );
 }
 
 /**

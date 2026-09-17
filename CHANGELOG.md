@@ -30,6 +30,46 @@ timestamp migrasi Prisma).
 
 ---
 
+## [v1.5.0] — Template PRD Siap Pakai (17 Sep 2026)
+
+Meluncurkan produk **Template PRD** yang sebelumnya berstatus "Segera Hadir":
+galeri template siap pakai untuk memangkas token saat memulai project.
+
+### Added
+
+- **Model `Template`** (`prisma/schema.prisma` + migrasi
+  `20260917102801_templates`): slug, judul, deskripsi, kategori, ikon, ide
+  awal, tech stack, locale, status aktif, urutan.
+- **Seed `prisma/seed-templates.mts`** — 6 template idempoten (upsert):
+  SaaS multi-tenant, toko e-commerce, backend mobile, dashboard internal,
+  marketplace, dan manajemen proyek.
+- **API `GET /api/templates`** — daftar ringkas untuk galeri; `?slug=` untuk
+  satu template lengkap (termasuk `idea`) guna prefill wizard. Gate berbayar
+  (402 untuk FREE).
+- **Halaman `/templates`** — galeri kartu + filter kategori + tombol
+  "Pakai template" yang mengarahkan ke wizard dengan `?template=<slug>`.
+- **Prefill wizard** — `/new-project` membaca `?template=` dan mengisi judul,
+  ide, locale, serta (bila tepat 4 teknologi) preferensi stack mode manual,
+  tanpa menimpa isian yang sudah ada.
+- **`lib/template-meta.ts`** — pemetaan nama ikon → komponen + label kategori.
+- Entri **sidebar "Template PRD"** dan tautan "Mulai dari template" di
+  `/projects`; produk di `lib/products.ts` kini `active`.
+
+### Changed
+
+- **`lib/workspace-access.ts` dipecah**: logika keputusan murni dipindah ke
+  `lib/workspace-access-core.ts` agar bisa diuji tanpa database.
+
+### Added (test)
+
+- `tests/workspace-access.test.mjs` — 12 uji aturan akses workspace
+  (pemilik pribadi, anggota EDITOR/VIEWER/OWNER, non-anggota, bug lama
+  "OWNER org tidak bisa hapus").
+- `tests/template-meta.test.mjs` — 5 uji pemetaan ikon & label kategori.
+  Total uji: **128 lulus**.
+
+---
+
 ## [v1.4.0] — Organisasi Tim & Akses Workspace Berbasis Keanggotaan (17 Sep 2026)
 
 Fitur **kolaborasi tim ENTERPRISE**: satu organisasi bisa berisi beberapa
