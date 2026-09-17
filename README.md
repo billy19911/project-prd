@@ -135,22 +135,25 @@ project-prd/                      # akar repositori
     │   │   └── settings/         # plan · team · profile · developer
     │   ├── (public)/prd/[shareSlug]/  # Halaman PRD publik 3 kolom
     │   ├── (admin)/admin/        # Dashboard admin (RBAC)
-    │   ├── api/                  # 33 endpoint (lihat Referensi API)
+    │   ├── api/                  # 47 endpoint (lihat Referensi API)
     │   └── post-login/           # Router setelah login (berdasar role)
     ├── bin/cli.js                # CLI executable (`xynn`)
-    ├── components/               # 28 komponen
+    ├── components/               # 29 komponen
     │   └── ui/                   # Primitif: Button, Badge, Card, Input, dll.
-    ├── lib/                      # 16 modul logika inti
+    ├── lib/                      # 25 modul logika inti
     ├── prisma/
-    │   ├── schema.prisma         # 10 model, 4 enum
-    │   ├── migrations/           # 10 migrasi
-    │   └── seed-plans.mts        # Seeding plan (4 tier)
+    │   ├── schema.prisma         # 21 model, 7 enum
+    │   ├── migrations/           # 17 migrasi
+    │   ├── seed-plans.mts        # Seeding plan (4 tier)
+    │   ├── seed-templates.mts    # Seeding template PRD
+    │   └── seed-features.mts     # Seeding flag rilis fitur
     ├── tests/
     │   ├── access.test.mjs       # Uji gate hak akses & kuota
     │   ├── theme.test.mjs        # Uji sanitasi token tema
     │   ├── workspace-access.test.mjs  # Uji akses workspace org
     │   ├── feature-flags.test.mjs     # Uji logika flag rilis fitur
     │   ├── consult-prompt.test.mjs    # Uji prompt konsultasi
+    │   ├── chat-prompt.test.mjs       # Uji prompt chat
     │   └── prompt.test.mjs       # Uji prompt generator prototype
     └── types/next-auth.d.ts      # Augmentasi tipe sesi
 ```
@@ -191,7 +194,7 @@ openssl rand -hex 32
 ### 4. Siapkan database
 
 ```bash
-npx prisma migrate deploy     # terapkan 10 migrasi
+npx prisma migrate deploy     # terapkan 17 migrasi
 npx prisma generate           # buat Prisma Client
 node --experimental-strip-types prisma/seed-plans.mts   # isi tabel Plan
 ```
@@ -438,7 +441,7 @@ Dikunci oleh uji `"style mengikuti hasTasks (sesuai syarat server)"`.
 
 ## Referensi API
 
-33 endpoint di bawah `app/api/`. Endpoint terproteksi memakai sesi
+47 endpoint di bawah `app/api/`. Endpoint terproteksi memakai sesi
 NextAuth (401 bila anonim); **gate berbayar** mengembalikan **402** —
 kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 (lihat catatan di tabel di bawah).
@@ -460,6 +463,8 @@ kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 | `POST /api/ai/styleguide` | Berbayar | Style Guide (butuh `tasksJson`). **402** bila Free. |
 | `POST /api/ai/full-prd` | Berbayar | PRD lengkap. **402** bila Free. |
 | `POST /api/ai/prototype` | **Pro** | Prototype HTML dari PRD + Style Guide. **402** non-Pro · **429** kuota habis · **400** prasyarat belum ada. |
+| `POST /api/ai/chat` | **Pro** + flag `chat` | Balasan Chat Prototype. **403** bila fitur belum LIVE. |
+| `POST /api/ai/consult` | Berbayar + flag `consult` | Balasan Konsultasi AI (arsitektur). **403** bila fitur belum LIVE. |
 
 > **Prasyarat `prototype`:** workspace harus sudah punya `fullPrdMd` **dan**
 > `styleGuideMd`. Kuota terpisah dari PRD: PRO 20/bulan, ENTERPRISE unlimited
@@ -488,6 +493,44 @@ kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 | `GET /api/vault/search` | Berbayar | Cari PRD publik. **402** + blur untuk Free. |
 | `POST /api/vault/fork` | **Pro** | Duplikasi PRD ke workspace sendiri. |
 | `GET /api/public/prd` | Publik | Data PRD publik berdasarkan slug. |
+
+### Template PRD
+
+| Endpoint | Gate | Fungsi |
+| :--- | :--- | :--- |
+| `GET /api/templates` | Berbayar | Daftar template ringkas. **402** bila Free. |
+| `GET /api/templates?slug=<slug>` | Berbayar | Satu template lengkap (prefill wizard). |
+
+### Chat & Konsultasi AI
+
+| Endpoint | Gate | Fungsi |
+| :--- | :--- | :--- |
+| `GET/POST/DELETE /api/chat/threads` | **Pro** + flag `chat` | Daftar/buat/hapus thread chat. |
+| `GET /api/chat/threads/[id]` | **Pro** + flag `chat` | Satu thread + pesannya. |
+| `GET/POST/DELETE /api/consult/threads` | Berbayar + flag `consult` | Daftar/buat/hapus thread konsultasi. |
+| `GET /api/consult/threads/[id]` | Berbayar + flag `consult` | Satu thread konsultasi + pesannya. |
+
+### Organisasi Tim (ENTERPRISE)
+
+| Endpoint | Fungsi |
+| :--- | :--- |
+| `GET/POST /api/org` | Daftar / buat organisasi (+ seat). `?lite=1` ringkas. |
+| `POST/PATCH/DELETE /api/org/members` | Undang / ubah peran / keluarkan anggota (OWNER saja). |
+
+### Prototype & Tema
+
+| Endpoint | Fungsi |
+| :--- | :--- |
+| `GET /api/workspace/versions` | Riwayat versi prototype. |
+| `POST /api/workspace/versions/restore` | Pulihkan versi prototype. |
+| `GET/POST/PATCH/DELETE /api/themes` | Library tema tersimpan (ENTERPRISE). |
+
+### Flag Rilis Fitur
+
+| Endpoint | Gate | Fungsi |
+| :--- | :--- | :--- |
+| `GET /api/features` | Publik | Status rilis tiap fitur (LIVE/SOON/HIDDEN). |
+| `GET/POST /api/admin/features` | `ADMIN` | Lihat / ubah status fitur. |
 
 ### Pengguna & Pembayaran
 
