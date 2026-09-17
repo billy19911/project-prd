@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   }
 
   const user = session.user as SessionUser;
-  const { id } = await req.json();
+  const { id } = await req.json().catch(() => ({}));
 
   const subscription = await prisma.subscription.findUnique({
     where: { userId: user.id },

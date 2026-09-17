@@ -12,10 +12,13 @@ export async function DELETE(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = (session.user as { id: string }).id;
-  const { id } = await req.json();
+  const { id } = await req.json().catch(() => ({}));
 
   if (!id) return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
 
+  // Akses tunggal: pemilik pribadi ATAU OWNER org. `canManage` sudah
+  // mencakup keduanya — jangan tambahkan cek `userId` lagi (dulu itu
+  // memblokir OWNER org untuk menghapus workspace org).
   const access = await getWorkspaceAccess(id, userId);
   if (!access.canView) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
@@ -25,18 +28,6 @@ export async function DELETE(req: Request) {
       { error: "Hanya pemilik yang dapat menghapus workspace." },
       { status: 403 }
     );
-  }
-
-  const workspace = await prisma.workspace.findUnique({
-    where: { id },
-    select: { userId: true },
-  });
-
-  if (!workspace) {
-    return NextResponse.json({ error: "Workspace tidak ditemukan" }, { status: 404 });
-  }
-  if (workspace.userId !== userId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   await prisma.workspace.delete({ where: { id } });

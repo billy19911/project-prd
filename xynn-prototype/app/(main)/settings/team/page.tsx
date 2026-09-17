@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { Input, Field, Select } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useSubscription } from "@/lib/use-subscription";
 
 type Member = {
   membershipId: string;
@@ -52,9 +51,13 @@ function RoleIcon({ role }: { role: string }) {
 }
 
 export default function TeamPage() {
-  const { canSaveThemes, loading: subLoading } = useSubscription();
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [loading, setLoading] = useState(true);
+  // Gate diambil dari SERVER, bukan dari langganan pribadi klien.
+  // Anggota org ENTERPRISE berhak walau langganan pribadinya bukan ENTERPRISE,
+  // jadi `canSaveThemes` (yang hanya melihat langganan sendiri) akan salah
+  // mengunci mereka. Server (/api/org) memakai `hasEnterpriseViaOrg`.
+  const [allowed, setAllowed] = useState(true);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
   const [inviteEmail, setInviteEmail] = useState<Record<string, string>>({});
@@ -63,27 +66,35 @@ export default function TeamPage() {
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/org");
+      if (res.status === 401) {
+        setAllowed(false);
+        return;
+      }
+      if (res.status === 402) {
+        // Bukan ENTERPRISE (langsung atau lewat org).
+        setAllowed(false);
+        return;
+      }
       if (!res.ok) throw new Error();
+      setAllowed(true);
       setOrgs(await res.json());
     } catch {
-      /* gate ditangani UI */
+      /* kegagalan jaringan: biarkan state terakhir */
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (subLoading) return;
     let active = true;
     (async () => {
       await Promise.resolve();
-      if (active && canSaveThemes) await load();
-      else if (active) setLoading(false);
+      if (active) await load();
     })();
     return () => {
       active = false;
     };
-  }, [subLoading, canSaveThemes, load]);
+  }, [load]);
 
   const createOrg = async () => {
     const name = newName.trim();
@@ -180,8 +191,8 @@ export default function TeamPage() {
     }
   };
 
-  /* ---------- gate ENTERPRISE ---------- */
-  if (!subLoading && !canSaveThemes) {
+  /* ---------- gate ENTERPRISE (ditentukan server) ---------- */
+  if (!loading && !allowed) {
     return (
       <div className="mx-auto max-w-2xl">
         <div className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface/60 px-6 py-16 text-center">
@@ -292,7 +303,6 @@ export default function TeamPage() {
                             >
                               <option value="EDITOR">Editor</option>
                               <option value="VIEWER">Lihat saja</option>
-                              <option value="OWNER">Pemilik</option>
                             </select>
                             <button
                               onClick={() => void removeMember(org.id, m.userId)}

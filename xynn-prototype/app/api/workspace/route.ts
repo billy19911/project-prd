@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
   const user = session.user as SessionUser;
   const { title, description, techStack, techPreferences, locale, organizationId } =
-    await req.json();
+    await req.json().catch(() => ({}));
 
   if (!title?.trim()) {
     return Response.json({ error: "Judul proyek wajib diisi" }, { status: 400 });

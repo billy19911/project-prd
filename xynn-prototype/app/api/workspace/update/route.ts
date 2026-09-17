@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     techStack,
     techPreferences,
     themeTokensJson,
-  } = await req.json();
+  } = await req.json().catch(() => ({}));
 
   if (!id) {
     return Response.json({ error: "Missing workspace id" }, { status: 400 });

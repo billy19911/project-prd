@@ -19,7 +19,11 @@ export async function POST(req: Request) {
   }
 
   const user = session.user as SessionUser;
-  const { id, isPublic, isAnonymous, category } = await req.json();
+  const { id, isPublic, isAnonymous, category } = await req.json().catch(() => ({}));
+
+  if (!id) {
+    return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
+  }
 
   const access = await getWorkspaceAccess(id, user.id);
   if (!access.canView) {

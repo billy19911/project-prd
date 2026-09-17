@@ -85,22 +85,40 @@ export async function POST(req: Request) {
     }
   }
 
-  // Kuota seat: anggota terpakai + undangan pending tidak boleh melebihi batas.
+  // Undangan yang sudah ada untuk email ini?
+  const existingInvite = await prisma.organizationInvite.findUnique({
+    where: { organizationId_email: { organizationId: orgId, email } },
+    select: { id: true, status: true },
+  });
+  if (existingInvite?.status === "ACCEPTED") {
+    return NextResponse.json(
+      { error: "Orang ini sudah menjadi anggota tim." },
+      { status: 400 }
+    );
+  }
+
+  // Kuota seat: anggota terpakai + undangan pending LAIN tidak boleh melebihi
+  // batas. Undangan milik email ini sendiri dikecualikan agar mengundang ulang
+  // / mengganti peran undangan yang menggantung tidak ikut menghitung ganda.
   const usage = await seatUsage(orgId);
-  if (usage.used + usage.pending >= usage.limit) {
+  const otherPending = usage.pending - (existingInvite?.status === "PENDING" ? 1 : 0);
+  if (usage.used + otherPending >= usage.limit) {
     return NextResponse.json(
       {
-        error: `Seat penuh (${usage.used + usage.pending}/${usage.limit}). Tambah seat atau hapus undangan yang menggantung.`,
+        error: `Seat penuh (${usage.used + otherPending}/${usage.limit}). Tambah seat atau hapus undangan yang menggantung.`,
       },
       { status: 400 }
     );
   }
 
-  const invite = await prisma.organizationInvite.upsert({
-    where: { organizationId_email: { organizationId: orgId, email } },
-    update: { role, status: "PENDING", respondedAt: null },
-    create: { organizationId: orgId, email, role, invitedById: userId },
-  });
+  const invite = existingInvite
+    ? await prisma.organizationInvite.update({
+        where: { id: existingInvite.id },
+        data: { role },
+      })
+    : await prisma.organizationInvite.create({
+        data: { organizationId: orgId, email, role, invitedById: userId },
+      });
 
   return NextResponse.json(invite);
 }
@@ -131,6 +149,16 @@ export async function PATCH(req: Request) {
   if (targetUserId === guard.org.ownerId && role !== "OWNER") {
     return NextResponse.json(
       { error: "Pemilik tim tidak dapat diturunkan perannya." },
+      { status: 400 }
+    );
+  }
+
+  // Hanya boleh ada SATU pemilik. Mempromosikan orang lain jadi OWNER akan
+  // membuat dua sumber kebenaran (Organization.ownerId vs Membership.role)
+  // yang bisa bertentangan.
+  if (role === "OWNER" && targetUserId !== guard.org.ownerId) {
+    return NextResponse.json(
+      { error: "Hanya boleh ada satu pemilik tim." },
       { status: 400 }
     );
   }

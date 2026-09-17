@@ -23,6 +23,11 @@ function isAdminEmail(email: string): boolean {
  * Dipanggil saat login. Idempoten: undangan yang sudah ACCEPTED tidak
  * disentuh lagi, dan keanggotaan yang sudah ada tidak diduplikasi.
  * Kegagalan di sini TIDAK boleh menggagalkan login.
+ *
+ * Seat dijaga DI SINI juga, bukan hanya saat mengundang: undangan bisa
+ * dibuat sebelum seat penuh lalu menumpuk. Klaim undangan dilakukan atomik
+ * (`updateMany` dengan guard `status: PENDING`) supaya dua login bersamaan
+ * tidak menambah anggota dua kali.
  */
 async function acceptPendingInvites(email: string | null | undefined): Promise<void> {
   if (!email) return;
@@ -40,24 +45,57 @@ async function acceptPendingInvites(email: string | null | undefined): Promise<v
     if (invites.length === 0) return;
 
     for (const inv of invites) {
-      await prisma.membership.upsert({
+      // Sudah anggota? cukup tandai undangan selesai, jangan buat baris baru.
+      const existing = await prisma.membership.findUnique({
         where: {
           organizationId_userId: {
             organizationId: inv.organizationId,
             userId: user.id,
           },
         },
-        update: {},
-        create: {
-          organizationId: inv.organizationId,
-          userId: user.id,
-          role: inv.role,
-        },
+        select: { id: true },
       });
-      await prisma.organizationInvite.update({
-        where: { id: inv.id },
+
+      if (!existing) {
+        // Hormati batas seat saat menerima undangan.
+        const [org, used] = await Promise.all([
+          prisma.organization.findUnique({
+            where: { id: inv.organizationId },
+            select: { seatLimit: true },
+          }),
+          prisma.membership.count({ where: { organizationId: inv.organizationId } }),
+        ]);
+        if (!org || used >= org.seatLimit) {
+          // Seat penuh: jangan menerima, biarkan undangan tetap tertunda
+          // agar bisa diproses setelah seat dibebaskan.
+          continue;
+        }
+      }
+
+      // Klaim undangan secara atomik: hanya lanjut bila masih PENDING.
+      const claimed = await prisma.organizationInvite.updateMany({
+        where: { id: inv.id, status: "PENDING" },
         data: { status: "ACCEPTED", respondedAt: new Date() },
       });
+      if (claimed.count === 0) continue; // sudah diproses login lain.
+
+      if (!existing) {
+        // upsert agar aman bila balapan dengan pembuatan anggota di tempat lain.
+        await prisma.membership.upsert({
+          where: {
+            organizationId_userId: {
+              organizationId: inv.organizationId,
+              userId: user.id,
+            },
+          },
+          update: {},
+          create: {
+            organizationId: inv.organizationId,
+            userId: user.id,
+            role: inv.role,
+          },
+        });
+      }
     }
   } catch (error) {
     // Jangan blokir login karena masalah undangan.

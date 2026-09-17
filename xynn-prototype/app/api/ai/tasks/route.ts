@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = (session.user as { id: string }).id;
-  const { id } = await req.json();
+  const { id } = await req.json().catch(() => ({}));
 
   if (!id) return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
 
