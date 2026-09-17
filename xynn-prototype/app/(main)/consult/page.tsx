@@ -10,10 +10,10 @@ import {
   Plus,
   Loader2,
   Trash2,
-  Compass,
 } from "lucide-react";
 import { toast } from "sonner";
 import { buttonClasses } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { ComingSoonGate } from "@/components/coming-soon-gate";
 import { useSubscription } from "@/lib/use-subscription";
 import { cn } from "@/lib/utils";
@@ -226,14 +226,11 @@ function ConsultWorkspace() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="mb-4 flex items-center gap-2">
-        <Compass className="h-4 w-4 text-accent" />
-        <h1 className="text-sm font-semibold text-foreground">Konsultasi AI</h1>
-        <span className="ml-auto text-[11px] text-muted">
-          Arsitektur, tech stack & roadmap
-        </span>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <PageHeader
+        title="Konsultasi AI"
+        description="Diskusikan arsitektur, tech stack, dan roadmap eksekusi bersama AI konsultan."
+      />
 
       <div className="grid min-h-[600px] overflow-hidden rounded-[var(--radius-card)] border border-border lg:grid-cols-[260px_1fr]">
         {/* Daftar thread */}

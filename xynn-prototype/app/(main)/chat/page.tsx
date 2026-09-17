@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  MessageSquare,
   Sparkles,
   ArrowLeft,
   Lock,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { buttonClasses } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { ComingSoonGate } from "@/components/coming-soon-gate";
 import { useSubscription } from "@/lib/use-subscription";
 import { cn } from "@/lib/utils";
@@ -229,14 +229,11 @@ function ChatWorkspace() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="mb-4 flex items-center gap-2">
-        <MessageSquare className="h-4 w-4 text-accent" />
-        <h1 className="text-sm font-semibold text-foreground">Chat Prototype</h1>
-        <span className="ml-auto text-[11px] text-muted">
-          Prototype di-generate dari tab Prototype
-        </span>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <PageHeader
+        title="Chat Prototype"
+        description="Susun kebutuhan prototype sambil mengobrol. Prototype di-generate dari tab Prototype."
+      />
 
       <div className="grid min-h-[600px] overflow-hidden rounded-[var(--radius-card)] border border-border lg:grid-cols-[260px_1fr]">
         {/* Daftar thread */}
