@@ -21,12 +21,28 @@ export async function POST(req: Request) {
   }
 
   const user = session.user as SessionUser;
-  const { title, description, techStack, techPreferences, locale, organizationId } =
-    await req.json().catch(() => ({}));
+  const {
+    title,
+    description,
+    techStack,
+    techPreferences,
+    locale,
+    organizationId,
+    importedPrd,
+  } = await req.json().catch(() => ({}));
 
   if (!title?.trim()) {
     return Response.json({ error: "Judul proyek wajib diisi" }, { status: 400 });
   }
+
+  // Mode import: pengguna menempel PRD yang sudah ada. PRD disimpan sebagai
+  // `fullPrdMd` sehingga alur berikutnya (mindmap → task → style → prototype)
+  // langsung bisa dijalankan tanpa men-generate PRD. Dibatasi panjangnya agar
+  // tidak menerima payload raksasa.
+  const prdText =
+    typeof importedPrd === "string" && importedPrd.trim()
+      ? importedPrd.trim().slice(0, 60000)
+      : null;
 
   // Bila workspace dibuat untuk sebuah organisasi, pastikan user benar-benar
   // anggotanya dan punya hak menambah (bukan VIEWER). Tanpa ini, siapa pun
@@ -73,6 +89,8 @@ export async function POST(req: Request) {
       techStack: normalizeTechStack(techStack),
       techPreferences: techPreferences ?? undefined,
       mindmapJson: { nodes: [], edges: [] },
+      // PRD hasil import (bila ada) langsung tersimpan.
+      ...(prdText ? { fullPrdMd: prdText } : {}),
     },
   });
 

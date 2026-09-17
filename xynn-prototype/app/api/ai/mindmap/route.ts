@@ -51,6 +51,8 @@ export async function POST(req: Request) {
       techStack: true,
       mindmapJson: true,
       locale: true,
+      // Dipakai sebagai konteks bila user mengimpor PRD (bukan mulai dari ide).
+      fullPrdMd: true,
     },
   });
 
@@ -63,9 +65,16 @@ export async function POST(req: Request) {
   const mindmapModel = aiConfig?.mindmapModel || "OpenCodeCombo";
   const systemPrompt = aiConfig?.systemPrompt || undefined;
 
+  // Sumber konteks: deskripsi (jalur ide) ATAU PRD yang diimpor. PRD lebih
+  // kaya, jadi dipakai duluan bila ada dan deskripsi kosong/ringkas.
+  const sourceContext =
+    workspace.fullPrdMd && !workspace.description?.trim()
+      ? workspace.fullPrdMd.slice(0, 8000)
+      : workspace.description || "";
+
   const { mindmap, usage } = await generateMindmapWithAI(
     workspace.title,
-    workspace.description || "",
+    sourceContext,
     normalizeTechStack(workspace.techStack),
     questions,
     answers,

@@ -17,6 +17,7 @@ import {
   Check,
   CheckCircle2,
   Lock,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,10 +28,11 @@ import { useUpgrade } from "@/components/upgrade-provider";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { MindmapCanvas } from "@/components/mindmap-canvas";
 import { sameNodes } from "@/lib/mindmap-compare";
+import { FLOW_STEPS as WIZARD_FLOW_STEPS, type WizardStep } from "@/lib/wizard-flow";
 import { cn } from "@/lib/utils";
 import { LOCALES, t, type Locale } from "@/lib/i18n";
 
-type Step = "idea" | "tech" | "questions" | "mindmap" | "output";
+type Step = WizardStep;
 
 type TechPrefs = {
   mode: "ai" | "manual";
@@ -73,6 +75,11 @@ export default function NewProjectWizard() {
   const [locale, setLocale] = useState<Locale>("id");
   const [title, setTitle] = useState("");
   const [idea, setIdea] = useState("");
+
+  // Mode alur: mulai dari ide, atau impor PRD yang sudah ada.
+  const [flow, setFlow] = useState<"idea" | "import">("idea");
+  // PRD yang ditempel pada mode import.
+  const [importPrd, setImportPrd] = useState("");
 
   // Tim (opsional) — hanya muncul bila user anggota org dengan hak menambah.
   const [orgs, setOrgs] = useState<{ id: string; name: string; myRole: string }[]>([]);
@@ -125,18 +132,41 @@ export default function NewProjectWizard() {
 
   const upgrade = useUpgrade();
   const L = t(locale);
-  const STEP_LABELS = [L.stepIdea, L.stepTech, L.stepQuestions, L.stepMindmap, L.stepOutput];
+  // Urutan step bergantung mode (lihat lib/wizard-flow.ts):
+  //   idea   : ide → tech → questions → mindmap → output
+  //   import : import PRD → mindmap → output  (PRD sudah ada, tanpa tech/questions)
+  const FLOW_STEPS = WIZARD_FLOW_STEPS[flow];
+  const STEP_LABELS = FLOW_STEPS.map((s) =>
+    s === "idea"
+      ? L.stepIdea
+      : s === "import"
+        ? L.stepImport
+        : s === "tech"
+          ? L.stepTech
+          : s === "questions"
+            ? L.stepQuestions
+            : s === "mindmap"
+              ? L.stepMindmap
+              : L.stepOutput
+  );
   const OUTPUT_STEPS = [
     { id: "prd" as const, label: L.tabPrd, icon: Sparkles },
     { id: "tasks" as const, label: L.tabTasks, icon: ListChecks },
     { id: "style" as const, label: L.tabStyle, icon: Palette },
   ];
-  const currentIndex = ["idea", "tech", "questions", "mindmap", "output"].indexOf(step);
-
+  const currentIndex = Math.max(0, FLOW_STEPS.indexOf(step));
   /* ---------- Step 1: create workspace ---------- */
   const createWorkspace = useCallback(async () => {
     if (!title.trim()) return toast.error(locale === "en" ? "Project title is required" : "Judul proyek wajib diisi");
-    if (!idea.trim()) return toast.error(locale === "en" ? "Describe your idea" : "Jelaskan ide aplikasinya");
+
+    if (flow === "import") {
+      if (!importPrd.trim())
+        return toast.error(
+          locale === "en" ? "Paste your PRD first" : "Tempel PRD Anda terlebih dahulu"
+        );
+    } else if (!idea.trim()) {
+      return toast.error(locale === "en" ? "Describe your idea" : "Jelaskan ide aplikasinya");
+    }
 
     setBusy("creating");
     try {
@@ -145,10 +175,12 @@ export default function NewProjectWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
-          description: idea,
+          description: flow === "import" ? "" : idea,
           techStack: [],
           locale,
           organizationId: orgId || undefined,
+          // Mode import: kirim PRD agar langsung tersimpan di workspace.
+          importedPrd: flow === "import" ? importPrd : undefined,
         }),
       });
 
@@ -165,13 +197,18 @@ export default function NewProjectWizard() {
 
       const ws = await res.json();
       setWorkspaceId(ws.id);
-      setStep("tech");
+      // Mode import: PRD hasil tempelan sudah tersimpan → taruh di state agar
+      // tab PRD langsung menampilkannya (tanpa generate).
+      if (flow === "import" && ws.fullPrdMd) setPrd(ws.fullPrdMd);
+      // Import → langsung ke mindmap (PRD sudah ada; lewati tech & questions).
+      // Ide → lanjut ke pemilihan teknologi.
+      setStep(flow === "import" ? "mindmap" : "tech");
     } catch {
       toast.error(locale === "en" ? "Failed to create project" : "Gagal membuat project");
     } finally {
       setBusy(null);
     }
-  }, [title, idea, locale, upgrade, orgId]);
+  }, [title, idea, locale, upgrade, orgId, flow, importPrd]);
 
   /* ---------- Step 2: tech prefs ---------- */
   const saveTechAndContinue = useCallback(async () => {
@@ -328,7 +365,7 @@ export default function NewProjectWizard() {
     }
   }, [workspaceId]);
 
-  /* ---------- Step 5: paywall → mulai PRD ---------- */
+  /* ---------- Step 5: paywall → mulai output ---------- */
   const continueFromMindmap = useCallback(async () => {
     const res = await fetch("/api/user/subscription");
     const sub = res.ok ? await res.json() : { isActive: false, planType: "FREE" };
@@ -336,16 +373,23 @@ export default function NewProjectWizard() {
       upgrade.open({
         title: "Berlangganan untuk melanjutkan",
         message:
-          "Mindmap siap! Untuk men-generate PRD lengkap, pilih paket berbayar.",
+          flow === "import"
+            ? "Mindmap siap! Untuk men-generate Task & Style Guide, pilih paket berbayar."
+            : "Mindmap siap! Untuk men-generate PRD lengkap, pilih paket berbayar.",
         highlight: "Struktur Anda tersimpan — lanjut setelah berlangganan.",
       });
       return;
     }
-    // Masuk ke step output, lalu HANYA PRD yang di-generate dulu.
     setStep("output");
-    setActiveTab("prd");
-    await generatePrd();
-  }, [generatePrd, upgrade]);
+    if (flow === "import") {
+      // PRD sudah diimpor → langsung ke Task.
+      setActiveTab("tasks");
+    } else {
+      // Jalur ide: mulai dari PRD.
+      setActiveTab("prd");
+      await generatePrd();
+    }
+  }, [generatePrd, upgrade, flow]);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("id");
@@ -434,14 +478,38 @@ export default function NewProjectWizard() {
         <StepIndicator current={currentIndex + 1} steps={STEP_LABELS} />
       </div>
 
-      {/* ============ STEP 1: IDEA ============ */}
-      {step === "idea" && (
+      {/* ============ STEP 1: IDEA / IMPORT ============ */}
+      {(step === "idea" || step === "import") && (
         <div className="xynn-rise space-y-6">
           <div className="space-y-2">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               {L.wizardTitle}
             </h1>
             <p className="text-sm text-muted">{L.wizardDesc}</p>
+          </div>
+
+          {/* Pemilih mode alur: mulai dari ide atau impor PRD */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ChoiceCard
+              active={flow === "idea"}
+              onClick={() => {
+                setFlow("idea");
+                setStep("idea");
+              }}
+              icon={Sparkles}
+              title={L.flowIdeaTitle}
+              desc={L.flowIdeaDesc}
+            />
+            <ChoiceCard
+              active={flow === "import"}
+              onClick={() => {
+                setFlow("import");
+                setStep("import");
+              }}
+              icon={FileText}
+              title={L.flowImportTitle}
+              desc={L.flowImportDesc}
+            />
           </div>
 
           {/* Language selector */}
@@ -487,7 +555,7 @@ export default function NewProjectWizard() {
             </div>
           )}
 
-          {/* Idea input */}
+          {/* Input: ide ATAU PRD impor */}
           <div className="space-y-4 rounded-2xl border border-border bg-surface/40 p-5">
             <Field label={L.titleLabel}>
               <Input
@@ -497,31 +565,46 @@ export default function NewProjectWizard() {
               />
             </Field>
 
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-xs font-medium text-muted">{L.ideaLabel}</label>
-                <button
-                  type="button"
-                  onClick={() => setIdea(EXAMPLE_IDEA[locale])}
-                  className="text-[11px] text-accent hover:underline"
-                >
-                  {L.useExample}
-                </button>
+            {flow === "idea" ? (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted">{L.ideaLabel}</label>
+                  <button
+                    type="button"
+                    onClick={() => setIdea(EXAMPLE_IDEA[locale])}
+                    className="text-[11px] text-accent hover:underline"
+                  >
+                    {L.useExample}
+                  </button>
+                </div>
+                <Textarea
+                  value={idea}
+                  onChange={(e) => setIdea(e.target.value)}
+                  rows={5}
+                  placeholder={locale === "en" ? `e.g. ${EXAMPLE_IDEA.en}` : `cth: ${EXAMPLE_IDEA.id}`}
+                />
+                <p className="mt-1.5 text-[11px] text-muted">{L.ideaHint}</p>
               </div>
-              <Textarea
-                value={idea}
-                onChange={(e) => setIdea(e.target.value)}
-                rows={5}
-                placeholder={locale === "en" ? `e.g. ${EXAMPLE_IDEA.en}` : `cth: ${EXAMPLE_IDEA.id}`}
-              />
-              <p className="mt-1.5 text-[11px] text-muted">{L.ideaHint}</p>
-            </div>
+            ) : (
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted">
+                  {L.importPrdLabel}
+                </label>
+                <Textarea
+                  value={importPrd}
+                  onChange={(e) => setImportPrd(e.target.value)}
+                  rows={10}
+                  placeholder={L.importPrdPlaceholder}
+                />
+                <p className="mt-1.5 text-[11px] text-muted">{L.importPrdHint}</p>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end">
             <Button onClick={createWorkspace} disabled={busy === "creating"} size="lg">
               {busy === "creating" && <Loader2 className="h-4 w-4 animate-spin" />}
-              {L.next}
+              {flow === "import" ? L.importPrdCta : L.next}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
@@ -697,12 +780,16 @@ export default function NewProjectWizard() {
           </div>
 
           <div className="flex items-center justify-between">
-            <Button variant="ghost" onClick={() => setStep("questions")} disabled={!!busy}>
+            <Button
+              variant="ghost"
+              onClick={() => setStep(flow === "import" ? "import" : "questions")}
+              disabled={!!busy}
+            >
               <ArrowLeft className="h-4 w-4" />
               {L.back}
             </Button>
             <Button onClick={continueFromMindmap} disabled={!!busy || nodes.length === 0} size="lg">
-              {L.toPrd}
+              {flow === "import" ? L.tabTasks : L.toPrd}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
