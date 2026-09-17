@@ -199,7 +199,7 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const generate = async (kind: "prd" | "tasks" | "style" | "prototype") => {
+  const generate = async (kind: "prd" | "tasks" | "style" | "prototype", screenLabel?: string) => {
     setBusy(kind);
     const url =
       kind === "prd"
@@ -213,7 +213,7 @@ export default function ProjectDetailPage() {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify(screenLabel ? { id, screenLabel } : { id }),
       });
       const data = await res.json();
       if (res.status === 402) {
@@ -738,11 +738,44 @@ export default function ProjectDetailPage() {
                       title={workspace.title}
                       busy={busy === "prototype"}
                       onRegenerate={() => generate("prototype")}
+                      onRegenerateScreen={(label) => generate("prototype", label)}
+                      onRestoreVersion={async (versionId) => {
+                        try {
+                          const res = await fetch("/api/workspace/versions/restore", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ versionId }),
+                          });
+                          if (!res.ok) throw new Error();
+                          const d = await res.json();
+                          setWorkspace((prev) =>
+                            prev ? { ...prev, prototypeHtml: d.prototypeHtml } : null
+                          );
+                          toast.success("Versi dipulihkan");
+                          return d.prototypeHtml as string;
+                        } catch {
+                          toast.error("Gagal memulihkan versi");
+                          return null;
+                        }
+                      }}
                     />
                     <ThemeEditor
                       value={theme}
                       onChange={setTheme}
                       canSaveLibrary={canSaveThemes}
+                      onApplySaved={(t) => {
+                        // Terapkan tema dari library ke project ini, lalu
+                        // simpan otomatis agar tidak hilang saat render ulang.
+                        setWorkspace((prev) =>
+                          prev ? { ...prev, themeTokensJson: t } : null
+                        );
+                        void fetch("/api/workspace/update", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ id, themeTokensJson: t }),
+                        });
+                        toast.success("Tema dari library diterapkan");
+                      }}
                       onSave={async (t) => {
                         const res = await fetch("/api/workspace/update", {
                           method: "POST",

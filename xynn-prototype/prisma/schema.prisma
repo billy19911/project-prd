@@ -62,6 +62,7 @@ model User {
   workspaces    Workspace[]
   apiKeys       ApiKey[]
   transactions  Transaction[]
+  savedThemes   SavedTheme[]
 }
 
 model Subscription {
@@ -102,6 +103,7 @@ model Workspace {
   prototypeHtml       String?      // HTML/CSS/JS self-contained, dirender di iframe
   prototypeJson       Json?        // { screens: [{id,label,order}], generatedAt }
   themeTokensJson     Json?        // token tema tersimpan (warna, tipografi, bentuk)
+  prototypeVersions   PrototypeVersion[]
 
   isPublic            Boolean      @default(false)
   isAnonymous         Boolean      @default(false)
@@ -118,6 +120,20 @@ model Workspace {
   updatedAt           DateTime     @updatedAt
 }
 
+/// Riwayat prototype — agar regenerate tidak menimpa versi lama secara permanen.
+/// Disimpan maksimal N versi terakhir per workspace (dipangkas saat menyimpan).
+model PrototypeVersion {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  html        String
+  screens     Json?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+}
+
 model ApiKey {
   id          String    @id @default(uuid())
   userId      String
@@ -126,6 +142,22 @@ model ApiKey {
   keyHash     String    @unique
   lastUsedAt  DateTime?
   createdAt   DateTime  @default(now())
+}
+
+/// Library tema lintas-project — fitur ENTERPRISE.
+/// Berbeda dari `Workspace.themeTokensJson` (tema satu project), tema di sini
+/// dapat diterapkan ke project mana pun milik pengguna.
+model SavedTheme {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  tokens      Json     // ThemeTokens: warna, font, baseSize, radius
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 model PaymentConfig {

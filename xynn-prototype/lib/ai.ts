@@ -906,12 +906,19 @@ function fallbackStyleGuide(title: string): string {
  */
 import {
   buildPrototypePrompt as buildProtoPrompt,
+  buildSingleScreenPrompt,
+  replaceScreenInHtml,
+  detectScreensFromHtml,
   type ThemeTokensForPrompt as ThemeTokens,
 } from "@/lib/prototype-prompt";
 
 export {
   buildPrototypePrompt,
   buildThemeOverrideBlock,
+  buildSingleScreenPrompt,
+  replaceScreenInHtml,
+  detectScreensFromHtml,
+  hasScreenMarkers,
 } from "@/lib/prototype-prompt";
 export type { ThemeTokensForPrompt } from "@/lib/prototype-prompt";
 
@@ -957,6 +964,10 @@ export function extractHtmlDocument(raw: string): string {
 /**
  * Parse penanda screen dari HTML, bila model menuliskannya.
  * Model diminta menulis komentar `<!-- screen: Label -->` sebelum tiap layar.
+ *
+ * Bila penanda TIDAK ada (terbukti terjadi pada pengujian nyata — AI kadang
+ * mengembalikan dokumen utuh tanpa penanda), jatuh ke deteksi struktural agar
+ * daftar screen tidak kosong.
  */
 export function extractScreens(html: string): PrototypeScreen[] {
   const out: PrototypeScreen[] = [];
@@ -972,7 +983,8 @@ export function extractScreens(html: string): PrototypeScreen[] {
     if (out.some((s) => s.id === id)) continue;
     out.push({ id: id || `screen-${out.length + 1}`, label });
   }
-  return out;
+  if (out.length > 0) return out;
+  return detectScreensFromHtml(html);
 }
 
 function fallbackScreens(): PrototypeScreen[] {
@@ -1031,6 +1043,80 @@ export async function generatePrototypeWithAI(
   }
 }
 
+
+/**
+ * Regenerate SATU screen saja.
+ *
+ * Pendekatan: minta AI mengembalikan markup screen itu SAJA (bukan dokumen
+ * utuh), lalu kita gabungkan sendiri dengan `replaceScreenInHtml`. Ini jauh
+ * lebih andal dan lebih murah daripada meminta dokumen penuh.
+ *
+ * Bila apa pun gagal, kembalikan HTML lama supaya prototype pengguna tidak
+ * rusak.
+ */
+export async function regenerateSingleScreenWithAI(
+  title: string,
+  screenLabel: string,
+  screenIndex: number,
+  totalScreens: number,
+  currentHtml: string,
+  model: string = "OpenCodeCombo",
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPT,
+  locale: Locale = "id",
+  theme?: ThemeTokens | null
+): Promise<PrototypeResult> {
+  const unchanged = {
+    html: currentHtml,
+    screens: extractScreens(currentHtml),
+    usage: null as UsageInfo | null,
+  };
+
+  const prompt = buildSingleScreenPrompt(
+    { title, screenLabel, screenIndex, totalScreens, currentHtml, theme: theme ?? null },
+    languageDirective(locale)
+  );
+
+  try {
+    const result = await chatCompletion(
+      model,
+      systemPrompt || DEFAULT_SYSTEM_PROMPT,
+      prompt
+    );
+
+    // AI diminta mengembalikan markup saja; bersihkan pagar markdown bila ada.
+    let markup = result.content.trim();
+    const fenced = markup.match(/```(?:html)?\s*\n([\s\S]*?)```/i);
+    if (fenced && fenced[1].trim()) markup = fenced[1].trim();
+
+    // Kalau model tetap mengembalikan dokumen penuh, ambil bagian screen-nya.
+    if (/<!doctype html|<html[\s>]/i.test(markup)) {
+      const blocks = extractScreens(markup);
+      if (blocks.length >= totalScreens) {
+        // Model menulis ulang semuanya — pakai hasilnya apa adanya.
+        const html = extractHtmlDocument(markup);
+        return {
+          html,
+          screens: blocks,
+          usage: extractUsage(model, result.usage),
+        };
+      }
+      return unchanged;
+    }
+
+    const merged = replaceScreenInHtml(currentHtml, screenLabel, markup);
+    if (!merged) return unchanged;
+    // Sanity: struktur dasar harus masih utuh.
+    if (!/<html/i.test(merged) || !/<\/html>/i.test(merged)) return unchanged;
+
+    return {
+      html: merged,
+      screens: extractScreens(merged),
+      usage: extractUsage(model, result.usage),
+    };
+  } catch {
+    return unchanged;
+  }
+}
 
 /** Prototype minimal bila AI gagal — tetap bisa dirender, jujur soal keadaannya. */
 function fallbackPrototype(title: string): string {

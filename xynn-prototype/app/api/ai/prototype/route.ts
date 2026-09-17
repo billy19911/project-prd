@@ -1,7 +1,13 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generatePrototypeWithAI } from "@/lib/ai";
+import {
+  generatePrototypeWithAI,
+  regenerateSingleScreenWithAI,
+  extractScreens,
+  hasScreenMarkers,
+} from "@/lib/ai";
+import type { PrototypeResult } from "@/lib/ai";
 import { recordAiUsage } from "@/lib/ai-usage";
 import {
   canGeneratePrototype,
@@ -11,6 +17,9 @@ import {
 import { NextResponse } from "next/server";
 import { normalizeTechStack } from "@/lib/utils";
 import { sanitizeThemeTokens } from "@/lib/theme";
+
+/** Jumlah versi prototype yang disimpan per workspace. */
+const MAX_VERSIONS = 10;
 
 /**
  * Generate Prototype Design (HTML) dari PRD + Style Guide. Khusus PRO ke atas.
@@ -26,7 +35,8 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = (session.user as { id: string }).id;
-  const { id } = await req.json();
+  const body = await req.json().catch(() => ({}));
+  const { id, screenLabel } = body as { id?: string; screenLabel?: string };
 
   if (!id) return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
 
@@ -62,6 +72,9 @@ export async function POST(req: Request) {
       // Tema tersimpan ikut dibaca agar regenerate TIDAK mengembalikan
       // warna/font ke default dan menghapus penyesuaian pengguna.
       themeTokensJson: true,
+      // Diperlukan untuk mode regenerate satu screen & riwayat versi.
+      prototypeHtml: true,
+      prototypeJson: true,
     },
   });
 
@@ -82,21 +95,93 @@ export async function POST(req: Request) {
   // Ikut model PRD yang ada (keputusan: satu model, bisa diubah dari /admin/ai-config).
   const model = aiConfig?.prdModel || "OpenCodeCombo";
   const systemPrompt = aiConfig?.systemPrompt || undefined;
+  const theme = workspace.themeTokensJson
+    ? sanitizeThemeTokens(workspace.themeTokensJson)
+    : null;
+  const locale = (workspace.locale as "id" | "en") || "id";
 
-  const { html, screens, usage } = await generatePrototypeWithAI(
-    workspace.title,
-    workspace.fullPrdMd,
-    workspace.styleGuideMd,
-    normalizeTechStack(workspace.techStack),
-    model,
-    systemPrompt,
-    (workspace.locale as "id" | "en") || "id",
-    // Teruskan tema tersimpan (bila ada) agar regenerate tidak menghapus
-    // penyesuaian pengguna. Disanitasi dulu karena datanya dari DB.
-    workspace.themeTokensJson
-      ? sanitizeThemeTokens(workspace.themeTokensJson)
-      : null
-  );
+  const existingScreens = extractScreens(workspace.prototypeHtml ?? "");
+  const wantsSingle =
+    typeof screenLabel === "string" &&
+    screenLabel.trim() !== "" &&
+    !!workspace.prototypeHtml;
+
+  // Mode per-screen butuh penanda `<!-- screen: -->` agar penggabungan aman.
+  // Bila tidak ada, beri tahu pengguna dengan jelas daripada gagal diam-diam.
+  if (wantsSingle && !hasScreenMarkers(workspace.prototypeHtml ?? "")) {
+    return NextResponse.json(
+      {
+        error:
+          "Prototype ini belum punya penanda screen, jadi regenerate per-screen belum bisa. Gunakan Regenerate penuh sekali untuk menambahkannya.",
+      },
+      { status: 409 }
+    );
+  }
+
+  let result: PrototypeResult;
+
+  if (wantsSingle) {
+    // Mode hemat: regenerate SATU screen saja.
+    const idx = Math.max(
+      0,
+      existingScreens.findIndex(
+        (s) => s.label.toLowerCase() === screenLabel!.trim().toLowerCase()
+      )
+    );
+    result = await regenerateSingleScreenWithAI(
+      workspace.title,
+      screenLabel!.trim(),
+      idx,
+      Math.max(1, existingScreens.length),
+      workspace.prototypeHtml!,
+      model,
+      systemPrompt,
+      locale,
+      theme
+    );
+  } else {
+    // Mode penuh: borong semua screen.
+    result = await generatePrototypeWithAI(
+      workspace.title,
+      workspace.fullPrdMd,
+      workspace.styleGuideMd,
+      normalizeTechStack(workspace.techStack),
+      model,
+      systemPrompt,
+      locale,
+      theme
+    );
+  }
+
+  const { html, screens, usage } = result;
+
+  // Simpan versi LAMA ke riwayat sebelum ditimpa, supaya regenerate tidak
+  // menghapus pekerjaan pengguna secara permanen.
+  if (workspace.prototypeHtml && workspace.prototypeHtml !== html) {
+    await prisma.prototypeVersion.create({
+      data: {
+        workspaceId: id,
+        html: workspace.prototypeHtml,
+        screens: workspace.prototypeJson ?? undefined,
+        note: wantsSingle
+          ? `Sebelum regenerate screen "${screenLabel}"`
+          : "Sebelum regenerate penuh",
+      },
+    });
+
+    // Pangkas riwayat agar tidak tumbuh tanpa batas (sisakan 10 terbaru).
+    const oldVersions = await prisma.prototypeVersion.findMany({
+      where: { workspaceId: id },
+      orderBy: { createdAt: "desc" },
+      skip: MAX_VERSIONS,
+      select: { id: true },
+    });
+    if (oldVersions.length > 0) {
+      await prisma.prototypeVersion.deleteMany({
+        where: { id: { in: oldVersions.map((v) => v.id) } },
+      });
+    }
+  }
 
   await prisma.workspace.update({
     where: { id, userId },
