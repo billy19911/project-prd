@@ -794,7 +794,17 @@ export default function ProjectDetailPage() {
                           if (!res.ok) throw new Error();
                           const d = await res.json();
                           setWorkspace((prev) =>
-                            prev ? { ...prev, prototypeHtml: d.prototypeHtml } : null
+                            prev
+                              ? {
+                                  ...prev,
+                                  prototypeHtml: d.prototypeHtml,
+                                  // Segarkan screens agar navigator tidak
+                                  // menampilkan label dari versi lama.
+                                  prototypeJson: d.screens
+                                    ? { screens: d.screens }
+                                    : prev.prototypeJson,
+                                }
+                              : null
                           );
                           toast.success("Versi dipulihkan");
                           return d.prototypeHtml as string;

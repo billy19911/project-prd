@@ -159,6 +159,14 @@ export default function NewProjectWizard() {
   const createWorkspace = useCallback(async () => {
     if (!title.trim()) return toast.error(locale === "en" ? "Project title is required" : "Judul proyek wajib diisi");
 
+    // Bila workspace sudah dibuat (mis. pengguna kembali ke langkah awal lalu
+    // maju lagi), JANGAN buat ulang — cukup lanjutkan. Mencegah workspace
+    // duplikat yang nyata terjadi di mode import.
+    if (workspaceId) {
+      setStep(flow === "import" ? "mindmap" : "tech");
+      return;
+    }
+
     if (flow === "import") {
       if (!importPrd.trim())
         return toast.error(
@@ -208,7 +216,7 @@ export default function NewProjectWizard() {
     } finally {
       setBusy(null);
     }
-  }, [title, idea, locale, upgrade, orgId, flow, importPrd]);
+  }, [title, idea, locale, upgrade, orgId, flow, importPrd, workspaceId]);
 
   /* ---------- Step 2: tech prefs ---------- */
   const saveTechAndContinue = useCallback(async () => {
@@ -327,11 +335,16 @@ export default function NewProjectWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: workspaceId }),
       });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || "Gagal generate task");
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 402) {
+        upgrade.open({
+          title: "Berlangganan untuk melanjutkan",
+          message: "Untuk men-generate Task Breakdown, pilih paket berbayar.",
+        });
+        return false;
       }
-      setTaskGroups((await res.json()).groups || []);
+      if (!res.ok) throw new Error(data.error || "Gagal generate task");
+      setTaskGroups(data.groups || []);
       return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal generate task");
@@ -339,7 +352,7 @@ export default function NewProjectWizard() {
     } finally {
       setBusy(null);
     }
-  }, [workspaceId]);
+  }, [workspaceId, upgrade]);
 
   /** Hasilkan Style Guide (butuh Task). */
   const generateStyle = useCallback(async (): Promise<boolean> => {
@@ -351,11 +364,16 @@ export default function NewProjectWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: workspaceId }),
       });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || "Gagal generate style guide");
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 402) {
+        upgrade.open({
+          title: "Berlangganan untuk melanjutkan",
+          message: "Untuk men-generate Style Guide, pilih paket berbayar.",
+        });
+        return false;
       }
-      setStyleGuide((await res.json()).styleGuide || "");
+      if (!res.ok) throw new Error(data.error || "Gagal generate style guide");
+      setStyleGuide(data.styleGuide || "");
       return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal generate style guide");
@@ -363,7 +381,7 @@ export default function NewProjectWizard() {
     } finally {
       setBusy(null);
     }
-  }, [workspaceId]);
+  }, [workspaceId, upgrade]);
 
   /* ---------- Step 5: paywall → mulai output ---------- */
   const continueFromMindmap = useCallback(async () => {
@@ -391,13 +409,44 @@ export default function NewProjectWizard() {
     }
   }, [generatePrd, upgrade, flow]);
 
+  // Resume workspace yang sudah ada (?id=...). Ambil datanya agar step & isi
+  // sesuai keadaan nyata (PRD/task/style yang sudah ada) — bukan menebak "tech".
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("id");
     if (!id) return;
-    queueMicrotask(() => {
-      setWorkspaceId(id);
-      setStep("tech");
-    });
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/workspace");
+        if (!res.ok) return;
+        const list: Array<Record<string, unknown>> = await res.json();
+        const ws = list.find((w) => w.id === id);
+        if (!active) return;
+        setWorkspaceId(id);
+        if (!ws) return;
+        // Selaraskan state dgn workspace yang ada.
+        if (typeof ws.title === "string") setTitle(ws.title);
+        if (typeof ws.fullPrdMd === "string") setPrd(ws.fullPrdMd);
+        if (Array.isArray(ws.tasksJson)) setTaskGroups(ws.tasksJson as TaskGroup[]);
+        if (typeof ws.styleGuideMd === "string") setStyleGuide(ws.styleGuideMd);
+        const hasPrd = typeof ws.fullPrdMd === "string" && ws.fullPrdMd.length > 0;
+        // Mode import = PRD sudah ada tapi deskripsi kosong.
+        const isImport =
+          hasPrd && !(typeof ws.description === "string" && ws.description.trim());
+        setFlow(isImport ? "import" : "idea");
+        if (hasPrd) {
+          setStep("output");
+          setActiveTab(Array.isArray(ws.tasksJson) && ws.tasksJson.length ? "style" : "tasks");
+        } else {
+          setStep("tech");
+        }
+      } catch {
+        /* diamkan; wizard tetap bisa dipakai */
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Muat tim yang bisa dipakai membuat workspace. Gagal (mis. bukan ENTERPRISE)
@@ -919,20 +968,27 @@ export default function NewProjectWizard() {
             {activeTab !== "style" ? (
               <Button
                 onClick={async () => {
-                  // Lanjut = generate tahap berikutnya (bila belum ada), lalu pindah tab.
+                  // Lanjut = generate tahap berikutnya (bila belum ada), lalu
+                  // pindah tab HANYA bila berhasil.
                   if (activeTab === "prd") {
                     if (!prd) {
                       const ok = await generatePrd();
                       if (!ok) return;
                     }
-                    if (taskGroups.length === 0) await generateTasks();
+                    if (taskGroups.length === 0) {
+                      const ok = await generateTasks();
+                      if (!ok) return;
+                    }
                     setActiveTab("tasks");
                   } else if (activeTab === "tasks") {
                     if (taskGroups.length === 0) {
                       const ok = await generateTasks();
                       if (!ok) return;
                     }
-                    if (!styleGuide) await generateStyle();
+                    if (!styleGuide) {
+                      const ok = await generateStyle();
+                      if (!ok) return;
+                    }
                     setActiveTab("style");
                   }
                 }}

@@ -137,12 +137,21 @@ export async function POST(req: Request) {
 
   if (wantsSingle) {
     // Mode hemat: regenerate SATU screen saja.
-    const idx = Math.max(
-      0,
-      existingScreens.findIndex(
-        (s) => s.label.toLowerCase() === screenLabel!.trim().toLowerCase()
-      )
+    // Cari screen yang benar-benar cocok. Bila tidak ketemu, JANGAN diam-diam
+    // menimpa screen pertama — kembalikan error agar label basi (mis. setelah
+    // regenerate penuh yang mengganti nama screen) tidak merusak screen lain.
+    const idx = existingScreens.findIndex(
+      (s) => s.label.toLowerCase() === screenLabel!.trim().toLowerCase()
     );
+    if (idx < 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Screen dengan nama itu tidak ditemukan di prototype saat ini. Muat ulang (refresh) lalu coba lagi.",
+        },
+        { status: 409 }
+      );
+    }
     result = await regenerateSingleScreenWithAI(
       workspace.title,
       screenLabel!.trim(),

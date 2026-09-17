@@ -87,5 +87,11 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ success: true, prototypeHtml: version.html });
+  return NextResponse.json({
+    success: true,
+    prototypeHtml: version.html,
+    // Sertakan screens agar klien menyegarkan navigator screen (kalau tidak,
+    // label screen bisa tertinggal dari versi sebelumnya).
+    screens: version.screens ?? null,
+  });
 }
