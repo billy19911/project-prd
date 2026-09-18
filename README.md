@@ -135,7 +135,7 @@ project-prd/                      # akar repositori
     │   │   └── settings/         # plan · team · profile · developer
     │   ├── (public)/prd/[shareSlug]/  # Halaman PRD publik 3 kolom
     │   ├── (admin)/admin/        # Dashboard admin (RBAC)
-    │   ├── api/                  # 47 endpoint (lihat Referensi API)
+    │   ├── api/                  # 49 endpoint (lihat Referensi API)
     │   └── post-login/           # Router setelah login (berdasar role)
     ├── bin/cli.js                # CLI executable (`xynn`)
     ├── components/               # 29 komponen
@@ -162,72 +162,65 @@ project-prd/                      # akar repositori
 
 ## Memulai (Setup Lokal)
 
-### 1. Prasyarat
+### 🚀 Cara cepat — satu perintah
+
+```bash
+git clone <repo-url>
+cd xynn-prototype
+npm run setup
+```
+
+`npm run setup` menangani hampir semuanya secara otomatis (idempotent,
+aman dijalankan berulang):
+
+1. **Bootstrap `.env`** — dibuat dari `.env.example` bila belum ada, dan
+   `NEXTAUTH_SECRET` + `ENCRYPTION_KEY` di-generate otomatis.
+2. **Install dependencies** — `npm install` (dilewati bila sudah ada).
+3. **Database** — `prisma migrate deploy` + `prisma generate`.
+4. **Seeding** — plan, template, dan feature flag.
+5. **Menjalankan dev server** di [http://localhost:3000](http://localhost:3000).
+
+> Hanya ingin menyiapkan tanpa menjalankan server?
+> ```bash
+> npm run setup -- --no-dev
+> ```
+
+### Prasyarat
 
 - **Node.js** 20+
 - **PostgreSQL** 14+ (berjalan & dapat diakses)
 - **Google OAuth credentials** — [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
 - **API key AI** — OpenAI dan/atau Anthropic
 
-### 2. Instalasi
+### Konfigurasi manual (bila perlu)
 
-```bash
-git clone <repo-url>
-cd xynn-prototype
-npm install
-```
+Setelah `npm run setup`, buka `.env` dan lengkapi nilainya
+(lihat [Variabel Environment](#variabel-environment)):
 
-### 3. Konfigurasi environment
+- `DATABASE_URL` — koneksi PostgreSQL.
+- `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET` — OAuth Google.
+- `ADMIN_EMAILS` — email yang otomatis jadi admin.
+- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` — minimal satu.
 
-```bash
-cp .env.example .env
-```
-
-Lalu isi nilainya — lihat [Variabel Environment](#variabel-environment).
-
-Untuk `ENCRYPTION_KEY` (kunci master AES-256-GCM):
-
-```bash
-openssl rand -hex 32
-```
-
-### 4. Siapkan database
-
-```bash
-npx prisma migrate deploy     # terapkan 17 migrasi
-npx prisma generate           # buat Prisma Client
-node --experimental-strip-types prisma/seed-plans.mts   # isi tabel Plan
-```
-
-> **Catatan seeding:** proyek ini **belum** mengonfigurasi perintah
-> `prisma db seed` (tidak ada `migrations.seed` di `prisma7.config.ts`
-> maupun blok `prisma` di `package.json`). Karena itu `seed-plans.mts`
-> dijalankan langsung seperti di atas.
->
-> Alternatif: aplikasi melakukan seeding *lazy* lewat `ensurePlansSeeded()`
-> saat `/api/plans` dipanggil pertama kali. Seeding eksplisit tetap
-> disarankan agar hasilnya dapat diprediksi.
-
-### 5. Konfigurasi Google OAuth
-
-Di Google Cloud Console, buat *OAuth 2.0 Client ID* (tipe **Web application**)
-dan daftarkan redirect URI:
+**Google OAuth:** daftarkan redirect URI berikut di Google Cloud Console:
 
 ```
 http://localhost:3000/api/auth/callback/google
 ```
 
-Salin **Client ID** dan **Client Secret** ke `.env`.
+> **Catatan `NEXTAUTH_SECRET` & `ENCRYPTION_KEY`:** keduanya di-generate
+> otomatis oleh `npm run setup` bila masih placeholder. `ENCRYPTION_KEY`
+> bersifat **irreversible** — bila hilang, seluruh `serverKeyEncrypted`
+> di database tidak dapat didekripsi. Untuk generate manual:
+> `openssl rand -hex 32`.
 
-### 6. Jalankan
+> **Seeding:** proyek ini **belum** mengonfigurasi perintah `prisma db seed`
+> (tidak ada `migrations.seed` di `prisma7.config.ts` maupun blok `prisma`
+> di `package.json`), sehingga `npm run setup` menjalankan `seed-*.mts`
+> langsung. Alternatif *lazy*: aplikasi melakukan seeding lewat
+> `ensurePlansSeeded()` saat `/api/plans` dipanggil pertama kali.
 
-```bash
-npm run dev
-```
-
-Buka [http://localhost:3000](http://localhost:3000).
-
-### 7. Jadikan diri Anda admin
+### Jadikan diri Anda admin
 
 Tambahkan email Google Anda ke `ADMIN_EMAILS` di `.env` (pisahkan dengan
 koma untuk beberapa admin), lalu **login ulang**. Akses `/admin`.
@@ -236,6 +229,8 @@ koma untuk beberapa admin), lalu **login ulang**. Akses `/admin`.
 
 | Perintah | Fungsi |
 | :--- | :--- |
+| `npm run setup` | **Setup + jalankan** — bootstrap `.env`, install, migrate, seed, lalu dev server. |
+| `npm run setup -- --no-dev` | Sama seperti di atas, tapi berhenti sebelum menjalankan server. |
 | `npm run dev` | Development server (hot reload) |
 | `npm run build` | Build produksi |
 | `npm run start` | Jalankan hasil build |
