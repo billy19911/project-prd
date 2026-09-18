@@ -246,12 +246,17 @@ koma untuk beberapa admin), lalu **login ulang**. Akses `/admin`.
 
 ### Pengujian
 
-`npm test` menjalankan 74 uji (`access` · `theme` · `prompt`) memakai **`node:test` bawaan
-Node** (tanpa dependency tambahan). Cakupannya:
+`npm test` menjalankan 193 uji (`access` · `billing-cycle` · `theme` · `prompt` ·
+`chat-prompt` · `consult-prompt` · `feature-flags` · `login-error` ·
+`mindmap-compare` · `template-meta` · `wizard-flow` · `workspace-access`)
+memakai **`node:test` bawaan Node** (tanpa dependency tambahan). Cakupannya:
 
 - Aktivasi langganan (status, kedaluwarsa, tanggal tidak valid).
 - Pemetaan tier, termasuk bahwa `PRO_YEARLY` diperlakukan sama dengan `PRO`.
 - Kuota PRD (`prdLimit` −1 = unlimited, batas tercapai, `undefined` = terkunci).
+- **Perhitungan masa aktif berbasis kalender** (`lib/billing.ts`): penyesuaian
+  bulan tidak meluber (31 Jan + 1 bulan = 28/29 Feb), tahunan tidak meleset di
+  tahun kabisat.
 - Rantai prasyarat `computeStepAvailability`.
 
 Yang terpenting: uji ini **menutup dua mode kegagalan senyap** saat menambah
@@ -294,24 +299,35 @@ pembayaran dapat diatur lewat `/admin/payments` sehingga tidak wajib di `.env`.
 
 ## Database & Migrasi
 
-### Model (10)
+### Model (21)
 
 | Model | Fungsi |
 | :--- | :--- |
 | `User` | Akun pengguna + `role` (`USER`/`ADMIN`). |
-| `Subscription` | Plan, status, kuota (`prdLimit`, `prdUsedThisMonth`), `billingCycle`, `validUntil`. |
-| `Workspace` | Inti proyek: `mindmapJson`, `fullPrdMd`, `tasksJson`, `styleGuideMd`, tech stack, privasi & data fork. |
+| `Subscription` | Plan, status, kuota (`prdLimit`, `prototypeLimit`, `*UsedThisMonth`), `billingCycle`, `startedAt`, `validUntil`. Masa aktif dihitung **berbasis kalender** (`lib/billing.ts`). |
+| `Workspace` | Inti proyek: `mindmapJson`, `fullPrdMd`, `tasksJson`, `styleGuideMd`, `prototypeHtml`, tech stack, privasi & data fork. |
+| `PrototypeVersion` | Riwayat versi HTML prototype (dipangkas maks. 10/proyek). |
 | `ApiKey` | Token CLI (`keyHash` SHA-256, `lastUsedAt`). |
-| `Plan` | Definisi paket yang bisa diubah admin (harga, fitur, `isPopular`, `sortOrder`). |
+| `Plan` | Definisi paket yang bisa diubah admin (harga, `prdLimit`, `prototypeLimit`, fitur, `isPopular`, `sortOrder`). |
+| `SavedTheme` | Library tema lintas-project (ENTERPRISE). |
+| `Template` | Template PRD siap pakai (prefill wizard). |
+| `ChatThread` / `ChatMessage` | Chat prototype (PRO ke atas). |
+| `ConsultThread` / `ConsultMessage` | Konsultasi AI (berbayar). |
+| `Organization` / `Membership` / `OrganizationInvite` | Kolaborasi tim (ENTERPRISE) + seat & undangan. |
 | `PaymentConfig` | Konfigurasi gateway (Midtrans/Xendit) + `serverKeyEncrypted`. |
 | `Voucher` | Kode diskon (persen/nominal, `maxUses`, `usedCount`). |
 | `Transaction` | Riwayat pembayaran + `paymentGatewayId`. |
 | `AiConfig` | System prompt & pemilihan model per tahap. |
 | `AiUsage` | Pelacakan konsumsi token AI (dasar analitik margin). Terindeks pada `createdAt` & `kind`. |
+| `FeatureFlag` | Status rilis fitur (LIVE/SOON/HIDDEN). |
 
-### Enum (4)
+### Enum (7)
 
-`Role` · `PlanType` (`FREE`,`STARTER`,`PRO`,`PRO_YEARLY`) · `SubStatus` (`INACTIVE`,`ACTIVE`,`CANCELLED`) · `BillingCycle` (`MONTHLY`,`QUARTERLY`,`YEARLY`)
+`Role` (`USER`,`ADMIN`) · `PlanType` (`FREE`,`STARTER`,`PRO`,`PRO_YEARLY`,`ENTERPRISE`) · `SubStatus` (`INACTIVE`,`ACTIVE`,`CANCELLED`) · `BillingCycle` (`MONTHLY`,`QUARTERLY`,`YEARLY`) · `OrgRole` (`OWNER`,`EDITOR`,`VIEWER`) · `InviteStatus` (`PENDING`,`ACCEPTED`,`REVOKED`) · `FeatureStatus` (`LIVE`,`SOON`,`HIDDEN`)
+
+> Catatan: `PRO_YEARLY` tetap ada di enum untuk kompatibilitas langganan lama,
+> tetapi dinormalisasi ke `PRO` saat pembuatan baru (lihat
+> [Siklus Billing & Masa Aktif](#siklus-billing--masa-aktif)).
 
 ### Riwayat migrasi
 
@@ -322,6 +338,18 @@ pembayaran dapat diatur lewat `/admin/payments` sehingga tidak wajib di `.env`.
 | `20260915225100_ai_usage` | Tabel `AiUsage` + 2 index. |
 | `20260915235457_plan_and_workspace_ext` | Tabel `Plan`; `tasksJson`, `styleGuideMd`, `techPreferences`, `billingCycle`, `startedAt`. |
 | `20260916001551_workspace_locale` | `Workspace.locale` (default `'id'`). |
+| `20260916181127_saved_themes` | Tabel `SavedTheme` (library tema lintas-project). |
+| `20260916181912_prototype_versions` | Tabel `PrototypeVersion` (riwayat HTML prototype). |
+| `20260916230000_aiconfig_backfill` | Backfill `AiConfig` (buat baris bila kosong). |
+| `20260916230100_plan_enterprise` | Nilai `ENTERPRISE` pada enum `PlanType` + baris `Plan`. |
+| `20260916233000_prototype_design` | Kolom prototype di `Workspace` (`prototypeHtml`, `prototypeJson`, `themeTokensJson`). |
+| `20260916234500_techstack_notnull` | `Workspace.techStack` → `NOT NULL`. |
+| `20260916235500_prototype_quota_backfill` | Isi `Subscription.prototypeLimit` sesuai tier. |
+| `20260917074500_chat_threads` | Tabel `ChatThread` & `ChatMessage`. |
+| `20260917080457_organizations` | `Organization`, `Membership`, `OrganizationInvite` + enum. |
+| `20260917102801_templates` | Tabel `Template`. |
+| `20260917103925_feature_flags` | Tabel `FeatureFlag` + enum `FeatureStatus`. |
+| `20260917104105_consult_threads` | Tabel `ConsultThread` & `ConsultMessage`. |
 
 ### Perintah umum
 
@@ -439,9 +467,57 @@ Dikunci oleh uji `"style mengikuti hasTasks (sesuai syarat server)"`.
 
 ---
 
+## Siklus Billing & Masa Aktif
+
+Kuota (`prdLimit` & `prototypeLimit`) **selalu diambil dari baris `Plan` di
+database**, bukan di-hardcode per tier. Ini satu sumber kebenaran: apa yang
+ditampilkan di `/admin/plans` adalah yang benar-benar diberikan saat upgrade.
+Helper `resolvePlanQuota(code)` di `lib/plans.ts` dipakai oleh **ketiga** jalur
+aktivasi agar konsisten:
+
+| Jalur | Endpoint |
+| :--- | :--- |
+| Checkout langsung | `POST /api/checkout/confirm` |
+| Webhook gateway | `POST /api/webhooks/payment` |
+| Grant admin | `POST /api/admin/users/plan` |
+
+### Masa aktif berbasis kalender
+
+Masa aktif **tidak** memakai fix 30/90/365 hari, melainkan penambahan bulan
+kalender (`lib/billing.ts` → `computeValidUntil(from, cycle)`):
+
+| `billingCycle` | Masa aktif |
+| :--- | :--- |
+| `MONTHLY` | +1 bulan |
+| `QUARTERLY` | +3 bulan |
+| `YEARLY` | +12 bulan |
+
+Penambahan bulan **meng-clamp ke hari terakhir bulan tujuan**, sehingga:
+
+- `31 Jan + 1 bulan` → **28/29 Feb** (bukan 2/3 Mar).
+- `29 Feb (kabisat) + 12 bulan` → **28 Feb** (tidak "meluber").
+- `1 Jan + 12 bulan` → **1 Jan** tahun berikutnya (tidak meleset lintas kabisat).
+
+> Admin masih dapat memaksa durasi eksplisit lewat `durationDays` (jumlah hari
+> persis) pada `POST /api/admin/users/plan`; bila diisi, nilai itu yang dipakai.
+
+### Normalisasi `PRO_YEARLY`
+
+`PRO_YEARLY` adalah **varian siklus billing**, bukan tier tersendiri:
+
+- `getAccessTier()` di `lib/access.ts` memetakannya ke `pro` (agar langganan
+  lama yang masih bertipe ini tetap punya akses penuh).
+- `mapCodeToPlanType()` di `lib/plans.ts` **menormalisasi ke `PRO`** saat
+  membuat/meng-assign langganan **baru** — sehingga tidak ada lagi baris
+  `Subscription` baru bertipe `PRO_YEARLY`.
+- `PRO_YEARLY` sengaja **tidak** muncul di dropdown `/admin/users` karena bukan
+  baris `Plan` di database.
+
+---
+
 ## Referensi API
 
-47 endpoint di bawah `app/api/`. Endpoint terproteksi memakai sesi
+48 endpoint di bawah `app/api/`. Endpoint terproteksi memakai sesi
 NextAuth (401 bila anonim); **gate berbayar** mengembalikan **402** —
 kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 (lihat catatan di tabel di bawah).
@@ -541,8 +617,8 @@ kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 | `GET /api/user/transactions` | Riwayat transaksi. |
 | `GET /api/plans` | Daftar plan (seeding *lazy*). |
 | `POST /api/checkout` | Buat token/instruksi pembayaran. |
-| `POST /api/checkout/confirm` | Konfirmasi pembayaran. |
-| `POST /api/webhooks/payment` | Webhook gateway + **idempotency**. |
+| `POST /api/checkout/confirm` | Konfirmasi pembayaran. Kuota dari `Plan` DB, masa aktif kalender. |
+| `POST /api/webhooks/payment` | Webhook gateway + **idempotency**. Kuota & masa aktif sama dengan `checkout/confirm`. |
 
 ### CLI
 
@@ -561,7 +637,7 @@ kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 | `POST /api/admin/ai-config/test` | Uji prompt di sandbox. |
 | `GET/POST /api/admin/plans` | Manajemen paket & harga. |
 | `GET/POST /api/admin/payment-gateways` | Konfigurasi gateway. |
-| `GET /api/admin/users`, `POST /api/admin/users/plan` | Manajemen pengguna & plan. |
+| `GET/POST /api/admin/users`, `POST /api/admin/users/plan` | Manajemen pengguna & plan (kuota dari `Plan` DB, masa aktif kalender; `durationDays` opsional). |
 | `GET/POST /api/admin/vouchers` | Manajemen voucher. |
 
 ---
@@ -623,7 +699,7 @@ Akses `/admin` dengan akun yang emailnya terdaftar di `ADMIN_EMAILS`.
 | `/admin/ai-config` | **Live System Prompt Sandbox** — editor *split-screen* untuk menguji perubahan prompt secara real-time tanpa redeploy. |
 | `/admin/plans` | Paket, harga, diskon, fitur, `isPopular`, urutan. |
 | `/admin/payments` | Konfigurasi gateway dinamis (Midtrans/Xendit) + mode sandbox/production. |
-| `/admin/users` | Cari pengguna, lihat langganan, ubah plan. |
+| `/admin/users` | Cari pengguna, lihat langganan, ubah plan (dropdown dari `Plan` di DB, termasuk **Enterprise**). |
 | `/admin/vouchers` | Buat & kelola kode voucher. |
 
 **Command Palette:** tekan **⌘K** / **Ctrl+K** untuk navigasi cepat (cari
@@ -707,13 +783,21 @@ npx serve -l 8289 .
 | **Vault ter-blur terus** | Free tier. Mode ini disengaja — upgrade untuk akses penuh. |
 | **Prisma error setelah ubah schema** | `npx prisma migrate dev` lalu `npx prisma generate`. Restart dev server. |
 | **Style Guide gagal dengan "Generate Task Breakdown terlebih dahulu"** | Urutan prasyarat belum terpenuhi. Generate PRD → Task → baru Style Guide. |
+| **HTTP 429 "Kuota generate Prototype habis" padahal PRO/Enterprise** | `Subscription.prototypeLimit` masih `0`. Jalankan ulang assign di `/admin/users` (kuota kini diambil dari `Plan.prototypeLimit`), atau pastikan baris `Plan` untuk tier tersebut punya `prototypeLimit` benar. |
 
 ### Ganti tier user untuk pengujian
 
+Cara yang disarankan (kuota & masa aktif dihitung otomatis dari `Plan`):
+
 ```bash
-npx prisma studio
-# Edit Subscription: planType, status=ACTIVE, validUntil ke masa depan
+# via UI /admin/users, atau langsung ke endpoint:
+curl -X POST http://localhost:3000/api/admin/users/plan \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"<id>","code":"PRO","billingCycle":"MONTHLY"}'
 ```
+
+Fallback manual (bila perlu): `npx prisma studio` → edit `Subscription`
+(`planType`, `status=ACTIVE`, `prdLimit`, `prototypeLimit`, `validUntil` ke masa depan).
 
 ---
 

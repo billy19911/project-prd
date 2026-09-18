@@ -1,18 +1,12 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { planPrdLimit } from "@/lib/plans";
+import { resolvePlanQuota } from "@/lib/plans";
+import { computeValidUntil } from "@/lib/billing";
 import { NextResponse } from "next/server";
-import type { BillingCycle } from "@prisma/client";
 
 interface SessionUser {
   id: string;
-}
-
-function durationForCycle(cycle: BillingCycle): number {
-  if (cycle === "YEARLY") return 365;
-  if (cycle === "QUARTERLY") return 90;
-  return 30;
 }
 
 /**
@@ -45,10 +39,14 @@ export async function POST(req: Request) {
   }
 
   const now = new Date();
-  const validUntil = new Date(
-    now.getTime() + durationForCycle(transaction.billingCycle) * 24 * 60 * 60 * 1000
+  // Masa aktif dihitung berbasis kalender (bukan fix 30/90/365 hari).
+  const validUntil = computeValidUntil(now, transaction.billingCycle);
+
+  // Kuota (prd & prototype) diambil dari baris Plan di DB agar konsisten dengan
+  // apa yang ditampilkan/dijanjikan paket — bukan nilai hardcode.
+  const { planType, prdLimit, prototypeLimit } = await resolvePlanQuota(
+    transaction.planType
   );
-  const prdLimit = planPrdLimit(transaction.planType);
 
   await prisma.$transaction([
     prisma.transaction.update({
@@ -59,18 +57,20 @@ export async function POST(req: Request) {
       where: { userId },
       create: {
         userId,
-        planType: transaction.planType,
+        planType,
         status: "ACTIVE",
         billingCycle: transaction.billingCycle,
         prdLimit,
+        prototypeLimit,
         startedAt: now,
         validUntil,
       },
       update: {
-        planType: transaction.planType,
+        planType,
         status: "ACTIVE",
         billingCycle: transaction.billingCycle,
         prdLimit,
+        prototypeLimit,
         prdUsedThisMonth: 0,
         startedAt: now,
         validUntil,
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     success: true,
-    planType: transaction.planType,
+    planType,
     validUntil,
   });
 }

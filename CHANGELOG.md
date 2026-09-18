@@ -30,6 +30,62 @@ timestamp migrasi Prisma).
 
 ---
 
+## [v1.7.0] — Perbaikan Billing: Kuota dari Plan & Masa Aktif Kalender
+
+Perbaikan pada sistem langganan setelah audit smoke test end-to-end. Tiga bug
+diperbaiki, dan perhitungan masa aktif dipindah ke basis kalender.
+
+### Fixed — Kuota prototype tidak ter-set saat upgrade
+
+- **`POST /api/admin/users/plan`** & **`POST /api/checkout/confirm`** dulu hanya
+  mengeset `planType` + `prdLimit`, **tidak** `prototypeLimit`. Akibatnya user
+  PRO/Enterprise yang baru upgrade tetap ditolak **HTTP 429** di
+  `/api/ai/prototype` (kuota tetap `0`).
+- **`POST /api/webhooks/payment`** bahkan hanya mengeset `prdLimit` hardcode
+  (`PRO` → `-1`, selain itu `5`) tanpa `prototypeLimit` sama sekali.
+- **Solusi:** helper baru **`resolvePlanQuota(code)`** di `lib/plans.ts` membaca
+  `prdLimit` & `prototypeLimit` dari baris **`Plan`** di DB. Ketiga jalur
+  aktivasi (checkout/confirm, webhook, admin assign) kini memakainya —
+  satu sumber kebenaran.
+- **`ensurePlansSeeded()`** kini ikut menyalin `prototypeLimit` saat seeding
+  (sebelumnya tertinggal, hasil lazy-seed beda dari `seed-plans.mts`).
+
+### Fixed — Dropdown paket di `/admin/users` tidak lengkap
+
+- Halaman admin kelola user meng-**hardcode** `["FREE","STARTER","PRO","PRO_YEARLY"]`
+  — **`ENTERPRISE` hilang**, sementara `PRO_YEARLY` justru bukan baris `Plan` di DB,
+  sehingga admin tidak bisa menaikkan user ke Enterprise.
+- **Solusi:** dropdown kini mengambil daftar dari **`GET /api/admin/plans`**
+  (`Plan` di DB), menampilkan nama paket, dan menyertakan plan aktif user bila
+  belum ada di daftar (agar langganan lama tidak hilang dari tampilan).
+
+### Changed — Masa aktif berbasis kalender
+
+- Masa aktif langganan **tidak lagi** memakai fix 30/90/365 hari, melainkan
+  penambahan bulan kalender. Helper baru **`lib/billing.ts`**:
+  `monthsForCycle()`, `addMonths()`, `computeValidUntil()`.
+- `MONTHLY` = +1 bulan, `QUARTERLY` = +3 bulan, `YEARLY` = +12 bulan.
+  Penambahan bulan **meng-clamp ke hari terakhir bulan tujuan**:
+  `31 Jan + 1 bulan` → **28/29 Feb** (bukan 2/3 Mar); `29 Feb + 12 bulan` →
+  **28 Feb**.
+- Diterapkan konsisten di `checkout/confirm`, `webhooks/payment`, dan
+  `admin/users/plan`. Admin tetap bisa memaksa durasi lewat `durationDays`
+  (jumlah hari persis) bila diperlukan.
+
+### Changed — Normalisasi `PRO_YEARLY`
+
+- `mapCodeToPlanType()` di `lib/plans.ts` kini **menormalisasi `PRO_YEARLY`
+  → `PRO`** saat membuat/meng-assign langganan baru (varian siklus billing,
+  bukan tier tersendiri). `getAccessTier()` tetap memetakan `PRO_YEARLY` → `pro`
+  agar langganan lama tetap berfungsi.
+
+### Added — Uji
+
+- **`tests/billing-cycle.test.mjs`** (13 uji): penyesuaian bulan kalender,
+  clamp akhir bulan, dan lintas tahun kabisat. Total suite kini **193 uji**.
+
+---
+
 ## [v1.6.0] — Konsultasi AI + Sistem Flag Rilis Fitur (17 Sep 2026)
 
 Dua hal: (1) fitur **Konsultasi AI** dibangun penuh (backend + frontend), dan
@@ -810,14 +866,14 @@ Migrasi: `20260916001551_workspace_locale`
 
 | Metrik | Jumlah |
 | :--- | ---: |
-| Halaman (`page.tsx`) | 23 |
-| Endpoint API (`route.ts`) | 32 |
-| Komponen React (`components/**/*.tsx`) | 26 |
-| Modul library (`lib/*.ts`) | 14 |
-| Model Prisma | 10 |
-| Enum Prisma | 4 |
-| Migrasi database | 5 |
-| Tier langganan (saat ini) | 3 → **4 (direncanakan)** |
+| Halaman (`page.tsx`) | 26 |
+| Endpoint API (`route.ts`) | 48 |
+| Komponen React (`components/**/*.tsx`) | 30 |
+| Modul library (`lib/*.ts`) | 29 |
+| Model Prisma | 21 |
+| Enum Prisma | 7 |
+| Migrasi database | 17 |
+| Tier langganan (saat ini) | **4** (Free · Starter · Pro · Enterprise) |
 
 ---
 

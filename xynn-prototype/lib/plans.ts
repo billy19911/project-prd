@@ -146,6 +146,7 @@ export async function ensurePlansSeeded() {
       priceYearly: p.priceYearly,
       discountPercent: p.discountPercent,
       prdLimit: p.prdLimit,
+      prototypeLimit: p.prototypeLimit,
       features: [...p.features],
       isPopular: p.isPopular,
       sortOrder: p.sortOrder,
@@ -155,21 +156,50 @@ export async function ensurePlansSeeded() {
 
 export function mapCodeToPlanType(
   code: string
-): "FREE" | "STARTER" | "PRO" | "PRO_YEARLY" | "ENTERPRISE" {
-  if (code === "ENTERPRISE") return "ENTERPRISE";
-  if (code === "PRO_YEARLY") return "PRO_YEARLY";
-  if (code === "PRO") return "PRO";
-  if (code === "STARTER") return "STARTER";
+): "FREE" | "STARTER" | "PRO" | "ENTERPRISE" {
+  const upper = code.toUpperCase();
+  if (upper === "ENTERPRISE") return "ENTERPRISE";
+  if (upper === "PRO") return "PRO";
+  // `PRO_YEARLY` adalah varian billing (PRO + siklus YEARLY), bukan tier
+  // tersendiri — normalisasi ke PRO saat membuat/meng-assign langganan baru.
+  if (upper === "PRO_YEARLY") return "PRO";
+  if (upper === "STARTER") return "STARTER";
   return "FREE";
 }
 
 export function planPrdLimit(code: string): number {
-  if (
-    code === "PRO" ||
-    code === "PRO_YEARLY" ||
-    code === "ENTERPRISE"
-  )
+  const upper = code.toUpperCase();
+  if (upper === "PRO" || upper === "PRO_YEARLY" || upper === "ENTERPRISE")
     return -1;
-  if (code === "STARTER") return 5;
+  if (upper === "STARTER") return 5;
   return 1;
+}
+
+/**
+ * Ambil batas kuota (PRD & prototype) dari baris `Plan` di DB.
+ *
+ * Satu sumber kebenaran: kuota prototype TIDAK di-hardcode per tier, melainkan
+ * mengikuti kolom `Plan.prototypeLimit`. Ini mencegah bug "upgrade tapi kuota
+ * prototype tetap 0" yang dulu terjadi karena endpoint upgrade hanya mengeset
+ * `prdLimit`/`planType` tanpa `prototypeLimit`.
+ *
+ * Bila baris Plan belum ada (mis. DB baru), jatuh ke nilai default sesuai kode.
+ */
+export async function resolvePlanQuota(code: string): Promise<{
+  planType: "FREE" | "STARTER" | "PRO" | "ENTERPRISE";
+  prdLimit: number;
+  prototypeLimit: number;
+}> {
+  const planType = mapCodeToPlanType(code);
+  const plan = await prisma.plan.findUnique({
+    where: { code: planType },
+    select: { prdLimit: true, prototypeLimit: true },
+  });
+
+  return {
+    planType,
+    prdLimit: plan?.prdLimit ?? planPrdLimit(planType),
+    // Plan.prototypeLimit default schema = 0; samakan fallback-nya.
+    prototypeLimit: plan?.prototypeLimit ?? 0,
+  };
 }

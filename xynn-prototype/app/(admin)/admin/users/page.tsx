@@ -24,10 +24,17 @@ type UserRow = {
   } | null;
 };
 
-const PLAN_OPTIONS = ["FREE", "STARTER", "PRO", "PRO_YEARLY"];
+type PlanOption = {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  sortOrder: number;
+};
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [planOptions, setPlanOptions] = useState<PlanOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -43,6 +50,13 @@ export default function UsersPage() {
       })
       .catch(() => toast.error("Gagal memuat user"))
       .finally(() => setLoading(false));
+
+    // Daftar paket diambil dari Plan di DB (bukan hardcode) agar selalu sinkron:
+    // admin, bukan developer, yang menentukan paket mana yang tersedia.
+    fetch("/api/admin/plans")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: PlanOption[]) => setPlanOptions(d))
+      .catch(() => toast.error("Gagal memuat daftar paket"));
   }, []);
 
   const changePlan = async (userId: string) => {
@@ -71,11 +85,13 @@ export default function UsersPage() {
   };
 
   const planTone = (plan: string) =>
-    plan === "PRO" || plan === "PRO_YEARLY"
-      ? "success"
-      : plan === "STARTER"
-        ? "accent"
-        : "neutral";
+    plan === "ENTERPRISE"
+      ? "accent"
+      : plan === "PRO" || plan === "PRO_YEARLY"
+        ? "success"
+        : plan === "STARTER"
+          ? "accent"
+          : "neutral";
 
   return (
     <div className="space-y-6">
@@ -126,9 +142,16 @@ export default function UsersPage() {
                     }
                     className="h-9 w-36 text-xs"
                   >
-                    {PLAN_OPTIONS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
+                    {/* Opsi dari Plan di DB; sertakan plan aktif user bila belum
+                        ada di daftar (mis. langganan lama) agar tidak hilang. */}
+                    {[
+                      ...planOptions.map((p) => p.code),
+                      ...(drafts[u.id] && !planOptions.some((p) => p.code === drafts[u.id])
+                        ? [drafts[u.id]]
+                        : []),
+                    ].map((code) => (
+                      <option key={code} value={code}>
+                        {planOptions.find((p) => p.code === code)?.name || code}
                       </option>
                     ))}
                   </Select>

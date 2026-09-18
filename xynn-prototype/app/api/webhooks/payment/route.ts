@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { resolvePlanQuota } from "@/lib/plans";
+import { computeValidUntil } from "@/lib/billing";
 import crypto from "crypto";
 
 export async function POST(req: Request) {
@@ -45,33 +47,33 @@ export async function POST(req: Request) {
 
   if (status === "SUCCESS") {
     const now = new Date();
-    const days =
-      transaction.billingCycle === "YEARLY"
-        ? 365
-        : transaction.billingCycle === "QUARTERLY"
-          ? 90
-          : 30;
-    const validUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
-    const prdLimit =
-      transaction.planType === "PRO" || transaction.planType === "PRO_YEARLY" ? -1 : 5;
+    // Masa aktif berbasis kalender + kuota dari Plan di DB — sama seperti
+    // jalur checkout/confirm, agar webhook tidak menghasilkan langganan yang
+    // kuotanya berbeda atau masa aktifnya meleset.
+    const validUntil = computeValidUntil(now, transaction.billingCycle);
+    const { planType, prdLimit, prototypeLimit } = await resolvePlanQuota(
+      transaction.planType
+    );
 
     await prisma.subscription.upsert({
       where: { userId: transaction.userId },
       create: {
         userId: transaction.userId,
-        planType: transaction.planType,
+        planType,
         status: "ACTIVE",
         billingCycle: transaction.billingCycle,
         prdLimit,
+        prototypeLimit,
         chatLimit: 0,
         startedAt: now,
         validUntil,
       },
       update: {
-        planType: transaction.planType,
+        planType,
         status: "ACTIVE",
         billingCycle: transaction.billingCycle,
         prdLimit,
+        prototypeLimit,
         prdUsedThisMonth: 0,
         startedAt: now,
         validUntil,

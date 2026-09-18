@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { mapCodeToPlanType, planPrdLimit } from "@/lib/plans";
+import { resolvePlanQuota } from "@/lib/plans";
+import { computeValidUntil } from "@/lib/billing";
 import type { BillingCycle } from "@prisma/client";
 
 function isAdmin(session: { user?: { role?: string } } | null) {
@@ -11,9 +12,9 @@ function isAdmin(session: { user?: { role?: string } } | null) {
 
 interface Body {
   userId: string;
-  code: string; // FREE | STARTER | PRO | PRO_YEARLY
+  code: string; // FREE | STARTER | PRO | ENTERPRISE (PRO_YEARLY dinormalisasi ke PRO)
   billingCycle?: BillingCycle;
-  durationDays?: number; // override durasi; default 30 bln / 365 thn
+  durationDays?: number; // override durasi dalam HARI persis (opsional)
 }
 
 /**
@@ -30,19 +31,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "userId & code wajib diisi" }, { status: 400 });
   }
 
-  const planType = mapCodeToPlanType(code.toUpperCase());
-  const prdLimit = planPrdLimit(code.toUpperCase());
+  // Kuota (prd & prototype) diambil dari baris Plan di DB — satu sumber
+  // kebenaran. Mencegah bug kuota prototype tertinggal 0 saat upgrade.
+  const { planType, prdLimit, prototypeLimit } = await resolvePlanQuota(code);
 
   // FREE = cabut langganan.
   if (planType === "FREE") {
     const updated = await prisma.subscription.upsert({
       where: { userId },
-      create: { userId, planType: "FREE", status: "INACTIVE", prdLimit: 1 },
+      create: {
+        userId,
+        planType: "FREE",
+        status: "INACTIVE",
+        prdLimit,
+        prototypeLimit,
+      },
       update: {
         planType: "FREE",
         status: "INACTIVE",
-        prdLimit: 1,
+        prdLimit,
+        prototypeLimit,
         prdUsedThisMonth: 0,
+        prototypeUsedThisMonth: 0,
         validUntil: null,
         startedAt: null,
       },
@@ -50,11 +60,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, subscription: updated });
   }
 
-  const days =
-    durationDays ?? (billingCycle === "YEARLY" ? 365 : billingCycle === "QUARTERLY" ? 90 : 30);
-
   const now = new Date();
-  const validUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  // Masa aktif: bila admin memberi `durationDays` eksplisit, pakai itu apa adanya
+  // (jumlah hari persis). Bila tidak, hitung berbasis kalender sesuai siklus.
+  const validUntil =
+    durationDays != null
+      ? new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000)
+      : computeValidUntil(now, billingCycle);
 
   const updated = await prisma.subscription.upsert({
     where: { userId },
@@ -64,6 +76,7 @@ export async function POST(req: Request) {
       status: "ACTIVE",
       billingCycle,
       prdLimit,
+      prototypeLimit,
       startedAt: now,
       validUntil,
     },
@@ -72,6 +85,7 @@ export async function POST(req: Request) {
       status: "ACTIVE",
       billingCycle,
       prdLimit,
+      prototypeLimit,
       prdUsedThisMonth: 0,
       startedAt: now,
       validUntil,
