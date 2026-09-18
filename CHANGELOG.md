@@ -30,6 +30,61 @@ timestamp migrasi Prisma).
 
 ---
 
+## [v1.8.0] — Integrasi Midtrans Snap (Sandbox) untuk Testing Pembayaran
+
+Menyambungkan alur checkout ke **Midtrans Snap**. Default **Sandbox** (uang
+simulasi, bukan uang nyata); Production hanya bila `PaymentConfig.isProduction`
+diaktifkan.
+
+### Added — Midtrans Snap
+
+- **Metode pembayaran `midtrans_snap`** (`lib/payments.ts`) — muncul di modal
+  checkout sebagai opsi "Midtrans (Snap)". Klik → server membuat transaksi Snap
+  → client diarahkan ke `redirect_url` (halaman pembayaran Midtrans).
+- **Base URL dinamis** (`midtransSnapBaseUrl`): `app.sandbox.midtrans.com` bila
+  `isProduction=false`, `app.midtrans.com` bila `true`. Sebelumnya hard-code ke
+  Production.
+- **`resolveGatewayConfig`** (`app/api/checkout/route.ts`) mengembalikan
+  `{ serverKey, isProduction, clientKey, id }`, sehingga flag Sandbox/Production
+  dari `/admin/payments` benar-benar berpengaruh (sebelumnya murni dekoratif).
+- **`lib/midtrans.ts`** — helper murni: `midtransSignatureKey`,
+  `verifyMidtransSignature` (SHA512, timing-safe), dan `mapMidtransStatus`.
+- **`lib/subscription-activate.ts`** — satu helper aktivasi langganan (kuota dari
+  `Plan` + masa aktif kalender) yang dipakai webhook & cek-status.
+
+### Added — Webhook Midtrans asli
+
+- `POST /api/webhooks/payment` kini mengenali **dua format**:
+  - **Midtrans** (ada `signature_key`): verifikasi
+    `SHA512(order_id + status_code + gross_amount + serverKey)`, mapping status
+    (`settlement`/`capture`→SUCCESS, `pending`→PENDING, `deny`/`cancel`/`expire`→FAILED).
+  - **Custom** lama (`x-payment-signature` HMAC) — tetap didukung untuk kompatibilitas.
+- `order_id` yang dikirim ke Midtrans = `Transaction.id`, sehingga webhook dapat
+  merekonsiliasi transaksi.
+- Payload notifikasi mentah disimpan di `Transaction.gatewayPayload` (jejak audit).
+
+### Added — Cek status saat kembali dari gateway
+
+- **`GET /api/checkout/status?id=<txId>`** — read-only; bila transaksi via
+  Midtrans, menanyakan status terkini ke Midtrans Status API, lalu mengaktifkan
+  langganan bila lunas. Hanya transaksi milik pemanggil yang bisa dicek (404 bila bukan).
+- Modal checkout menyimpan `transactionId` ke `localStorage`; halaman
+  `/settings/plan` melakukan *polling* singkat saat dibuka kembali dan
+  menyegarkan status begitu pembayaran lunas.
+
+### Changed — Skema `Transaction`
+
+- Kolom baru: **`paymentRef`** (referensi gateway, mis. Snap token) dan
+  **`gatewayPayload`** (Json, payload notifikasi terakhir). Migrasi
+  `20260918072006_transaction_payment_ref`.
+
+### Added — Uji
+
+- **`tests/midtrans.test.mjs`** (13 uji): rumus signature, verifikasi (termasuk
+  panjang beda → false, bukan throw), dan mapping status. Total suite **206 uji**.
+
+---
+
 ## [v1.7.0] — Perbaikan Billing: Kuota dari Plan & Masa Aktif Kalender
 
 Perbaikan pada sistem langganan setelah audit smoke test end-to-end. Tiga bug
@@ -867,12 +922,12 @@ Migrasi: `20260916001551_workspace_locale`
 | Metrik | Jumlah |
 | :--- | ---: |
 | Halaman (`page.tsx`) | 26 |
-| Endpoint API (`route.ts`) | 48 |
+| Endpoint API (`route.ts`) | 49 |
 | Komponen React (`components/**/*.tsx`) | 30 |
-| Modul library (`lib/*.ts`) | 29 |
+| Modul library (`lib/*.ts`) | 31 |
 | Model Prisma | 21 |
 | Enum Prisma | 7 |
-| Migrasi database | 17 |
+| Migrasi database | 18 |
 | Tier langganan (saat ini) | **4** (Free · Starter · Pro · Enterprise) |
 
 ---

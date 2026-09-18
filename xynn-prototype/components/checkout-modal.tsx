@@ -11,6 +11,7 @@ import {
   Wallet,
   ShieldCheck,
   Clock,
+  CreditCard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ const METHOD_ICON: Record<string, React.ComponentType<{ className?: string }>> =
   QRIS: QrCode,
   "Virtual Account": Landmark,
   "E-Wallet": Wallet,
+  Gateway: CreditCard,
 };
 
 export function CheckoutModal({
@@ -74,9 +76,20 @@ export function CheckoutModal({
       if (!res.ok) throw new Error(data.error || "Gagal membuat transaksi");
 
       if (data.paymentUrl) {
+        // Simpan id agar halaman tujuan bisa cek status saat user kembali dari
+        // gateway (webhook bisa tertunda / butuh URL publik).
+        try {
+          localStorage.setItem("xynn_pending_tx", data.transactionId);
+        } catch {
+          /* localStorage bisa diblokir; abaikan */
+        }
         toast.info("Mengarahkan ke payment gateway...");
         window.location.assign(data.paymentUrl);
         return;
+      }
+
+      if (data.warning) {
+        toast.warning(data.warning);
       }
 
       setTransactionId(data.transactionId);

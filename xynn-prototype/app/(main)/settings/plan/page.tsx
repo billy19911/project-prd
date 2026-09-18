@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Ticket, CalendarClock, Zap, CheckCircle2, Receipt, AlertTriangle } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/card";
 import { Input, Field } from "@/components/ui/input";
@@ -43,16 +44,61 @@ export default function PlanSettingsPage() {
       .then(setUsage)
       .catch(() => {});
 
+  const loadTransactions = () =>
+    fetch("/api/user/transactions")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setTransactions)
+      .catch(() => {});
+
   useEffect(() => {
     fetch("/api/plans")
       .then((r) => (r.ok ? r.json() : []))
       .then(setPlans)
       .catch(() => {});
-    fetch("/api/user/transactions")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setTransactions)
-      .catch(() => {});
+    loadTransactions();
     loadUsage();
+  }, []);
+
+  // Setelah kembali dari gateway (mis. Snap Midtrans), cek status transaksi yang
+  // tertunda. Bila Midtrans sudah menandainya lunas, langganan diaktifkan server.
+  useEffect(() => {
+    let pendingId: string | null = null;
+    try {
+      pendingId = localStorage.getItem("xynn_pending_tx");
+    } catch {
+      /* abaikan */
+    }
+    if (!pendingId) return;
+
+    let tries = 0;
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled) return;
+      tries += 1;
+      try {
+        const r = await fetch(`/api/checkout/status?id=${pendingId}`);
+        if (r.ok) {
+          const d = (await r.json()) as { status?: string };
+          if (d.status === "SUCCESS") {
+            localStorage.removeItem("xynn_pending_tx");
+            await Promise.all([loadUsage(), loadTransactions()]);
+            toast.success("Pembayaran berhasil! Langganan aktif.");
+            return;
+          }
+          if (d.status === "FAILED") {
+            localStorage.removeItem("xynn_pending_tx");
+            return;
+          }
+        }
+      } catch {
+        /* lanjut poll */
+      }
+      if (tries < 5 && !cancelled) setTimeout(poll, 3000);
+    };
+    poll();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleSelect = (plan: PlanView, cycle: "MONTHLY" | "YEARLY") => {

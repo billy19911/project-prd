@@ -246,8 +246,8 @@ koma untuk beberapa admin), lalu **login ulang**. Akses `/admin`.
 
 ### Pengujian
 
-`npm test` menjalankan 193 uji (`access` · `billing-cycle` · `theme` · `prompt` ·
-`chat-prompt` · `consult-prompt` · `feature-flags` · `login-error` ·
+`npm test` menjalankan 206 uji (`access` · `billing-cycle` · `midtrans` · `theme` ·
+`prompt` · `chat-prompt` · `consult-prompt` · `feature-flags` · `login-error` ·
 `mindmap-compare` · `template-meta` · `wizard-flow` · `workspace-access`)
 memakai **`node:test` bawaan Node** (tanpa dependency tambahan). Cakupannya:
 
@@ -257,6 +257,8 @@ memakai **`node:test` bawaan Node** (tanpa dependency tambahan). Cakupannya:
 - **Perhitungan masa aktif berbasis kalender** (`lib/billing.ts`): penyesuaian
   bulan tidak meluber (31 Jan + 1 bulan = 28/29 Feb), tahunan tidak meleset di
   tahun kabisat.
+- **Integrasi Midtrans** (`lib/midtrans.ts`): rumus & verifikasi signature
+  webhook (SHA512), serta mapping status transaksi.
 - Rantai prasyarat `computeStepAvailability`.
 
 Yang terpenting: uji ini **menutup dua mode kegagalan senyap** saat menambah
@@ -281,8 +283,8 @@ Lihat [Gating](#gating--hak-akses).
 | `OPENAI_API_KEY` | ✅* | Untuk wizard & kuesioner. |
 | `ANTHROPIC_API_KEY` | ✅* | Untuk mindmap JSON & Full PRD. |
 | `ENCRYPTION_KEY` | ✅ | Kunci master AES-256-GCM untuk `PaymentConfig.serverKeyEncrypted`. |
-| `MIDTRANS_SERVER_KEY` | ⬜ | Opsional untuk testing (default dari database). |
-| `MIDTRANS_CLIENT_KEY` | ⬜ | Opsional. |
+| `MIDTRANS_SERVER_KEY` | ⬜ | Midtrans server key **Sandbox** (`SB-Mid-server-...`). Fallback bila tak diisi via `/admin/payments`. |
+| `MIDTRANS_CLIENT_KEY` | ⬜ | Midtrans client key (`SB-Mid-client-...`). |
 | `XENDIT_SECRET_KEY` | ⬜ | Opsional. |
 | `PAYMENT_MODE` | ⬜ | Mode pembayaran. `.env.example` memakai `"dummy"` untuk pengujian. |
 | `XYNN_API_KEY` | ⬜ | Dipakai CLI (`--api-key`). |
@@ -350,6 +352,7 @@ pembayaran dapat diatur lewat `/admin/payments` sehingga tidak wajib di `.env`.
 | `20260917102801_templates` | Tabel `Template`. |
 | `20260917103925_feature_flags` | Tabel `FeatureFlag` + enum `FeatureStatus`. |
 | `20260917104105_consult_threads` | Tabel `ConsultThread` & `ConsultMessage`. |
+| `20260918072006_transaction_payment_ref` | `Transaction.paymentRef` & `gatewayPayload` (integrasi Midtrans). |
 
 ### Perintah umum
 
@@ -515,9 +518,57 @@ Penambahan bulan **meng-clamp ke hari terakhir bulan tujuan**, sehingga:
 
 ---
 
+## Pembayaran Midtrans (Snap)
+
+Alur checkout bisa menempuh **Midtrans Snap**. Secara default memakai **Sandbox**
+(uang simulasi, bukan uang nyata); Production hanya bila `isProduction`
+diaktifkan di `/admin/payments`.
+
+### Menyiapkan Sandbox (lokal)
+
+1. Daftar di [dashboard.midtrans.com](https://dashboard.midtrans.com), pastikan
+   mode **Sandbox** aktif.
+2. Ambil **Server Key** (`SB-Mid-server-...`) & **Client Key** (`SB-Mid-client-...`)
+   dari *Settings → Access Keys*.
+3. Buka `/admin/payments`, isi Provider `midtrans`, Client Key & Server Key
+   (prefix `SB-Mid-...`), **jangan** centang *Mode Production*, lalu **Simpan** &
+   **Aktifkan**. Server Key dienkripsi AES-256-GCM di database.
+4. (Opsional) Set juga `MIDTRANS_SERVER_KEY` / `MIDTRANS_CLIENT_KEY` di `.env`
+   sebagai fallback bila tak ingin mengisi lewat admin.
+
+### Alur pembayaran
+
+| Langkah | Yang terjadi |
+| :--- | :--- |
+| User pilih "Midtrans (Snap)" | `POST /api/checkout` (`method: midtrans_snap`) membuat transaksi + Snap token. |
+| Redirect | Client diarahkan ke `redirect_url` (halaman Snap). `transactionId` disimpan di `localStorage`. |
+| Bayar di Snap | Kartu/QRIS/VA/e-wallet ditangani Midtrans. |
+| Kembali ke aplikasi | Halaman `/settings/plan` memanggil `GET /api/checkout/status` (polling singkat) → langganan diaktifkan bila lunas. |
+
+### Webhook
+
+`POST /api/webhooks/payment` mengenali **dua format**:
+
+- **Midtrans asli** — body berisi `signature_key`. Diverifikasi dengan
+  `SHA512(order_id + status_code + gross_amount + serverKey)`. `order_id` yang
+  dikirim saat checkout = `Transaction.id`.
+- **Custom** — header `x-payment-signature` = `HMAC-SHA256(body, webhookSecret)`
+  dan body `{ transactionId, status }` (format lama, tetap didukung).
+
+> **URL webhook perlu publik.** Di lokal, jalankan tunnel (mis. `ngrok http 3000`)
+> lalu set *Payment Notification URL* di Dashboard Midtrans ke
+> `https://<url-ngrok>/api/webhooks/payment`. Tanpa webhook pun, langganan tetap
+> aktif lewat cek-status saat user kembali (lihat tabel alur di atas).
+
+Mapping status Midtrans: `settlement`/`capture`→**SUCCESS**,
+`pending`→**PENDING** (tidak mengaktifkan), `deny`/`cancel`/`expire`/`failure`→
+**FAILED**.
+
+---
+
 ## Referensi API
 
-48 endpoint di bawah `app/api/`. Endpoint terproteksi memakai sesi
+49 endpoint di bawah `app/api/`. Endpoint terproteksi memakai sesi
 NextAuth (401 bila anonim); **gate berbayar** mengembalikan **402** —
 kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 (lihat catatan di tabel di bawah).
@@ -616,9 +667,10 @@ kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 | `PATCH /api/user/profile` | Ubah profil pengguna. |
 | `GET /api/user/transactions` | Riwayat transaksi. |
 | `GET /api/plans` | Daftar plan (seeding *lazy*). |
-| `POST /api/checkout` | Buat token/instruksi pembayaran. |
+| `POST /api/checkout` | Buat token/instruksi pembayaran. `method: midtrans_snap` → Snap Sandbox/Production. |
 | `POST /api/checkout/confirm` | Konfirmasi pembayaran. Kuota dari `Plan` DB, masa aktif kalender. |
-| `POST /api/webhooks/payment` | Webhook gateway + **idempotency**. Kuota & masa aktif sama dengan `checkout/confirm`. |
+| `GET /api/checkout/status` | Cek status transaksi (polling setelah kembali dari gateway). |
+| `POST /api/webhooks/payment` | Webhook gateway + **idempotency**. Mendukung format Midtrans asli & custom. |
 
 ### CLI
 

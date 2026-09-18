@@ -374,6 +374,11 @@ model Transaction {
   billingCycle     BillingCycle
   status           String
   paymentGatewayId String?
+  /// Referensi dari gateway (mis. Snap token Midtrans / invoice id Xendit)
+  /// untuk rekonsiliasi. `order_id` yang dikirim = Transaction.id.
+  paymentRef       String?
+  /// Payload mentah notifikasi webhook terakhir (jejak audit).
+  gatewayPayload   Json?
   createdAt        DateTime     @default(now())
 }
 

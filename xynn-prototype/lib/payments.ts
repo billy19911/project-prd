@@ -5,6 +5,7 @@ export type PaymentMethodId =
   | "ewallet_gopay"
   | "ewallet_ovo"
   | "ewallet_dana"
+  | "midtrans_snap"
   | "gateway";
 
 export type PaymentMethod = {
@@ -17,6 +18,13 @@ export type PaymentMethod = {
 };
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
+  {
+    id: "midtrans_snap",
+    label: "Midtrans (Snap)",
+    group: "Gateway",
+    desc: "Kartu, QRIS, VA, & e-wallet via halaman aman Midtrans.",
+    external: true,
+  },
   {
     id: "qris",
     label: "QRIS",
@@ -134,4 +142,34 @@ export function buildInstruction(
       "Konfirmasi nominal dan selesaikan pembayaran.",
     ],
   };
+}
+
+/**
+ * Base URL Midtrans Snap.
+ *
+ * `isProduction=false` → Sandbox (uang simulasi, bukan uang nyata).
+ * `isProduction=true`  → Production (uang nyata).
+ *
+ * Dipakai `app/api/checkout/route.ts` agar endpoint Snap mengikuti flag
+ * `PaymentConfig.isProduction`, tidak lagi hard-code ke production.
+ */
+export function midtransSnapBaseUrl(isProduction: boolean): string {
+  return isProduction
+    ? "https://app.midtrans.com/snap/v1"
+    : "https://app.sandbox.midtrans.com/snap/v1";
+}
+
+/** True bila metode ini menempuh jalur gateway (redirect ke Midtrans). */
+export function isGatewayMethod(method: PaymentMethodId): boolean {
+  return method === "midtrans_snap" || method === "gateway";
+}
+
+/**
+ * Base URL API Midtrans (untuk cek status transaksi).
+ * Sandbox untuk testing, Production untuk uang nyata.
+ */
+export function midtransApiBaseUrl(isProduction: boolean): string {
+  return isProduction
+    ? "https://api.midtrans.com/v2"
+    : "https://api.sandbox.midtrans.com/v2";
 }
