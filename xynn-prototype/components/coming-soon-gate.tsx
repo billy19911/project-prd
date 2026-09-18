@@ -13,8 +13,8 @@ import type { FeatureKey } from "@/lib/feature-flags-core";
  * - SOON  → tampilkan halaman "Segera Hadir" (fitur tetap ada di baliknya).
  * - HIDDEN→ alihkan ke dashboard (tidak boleh diakses lewat URL).
  *
- * Selama status dimuat, tidak merender apa pun agar tidak berkedip antara
- * "Segera Hadir" dan fitur penuh.
+ * Selama status dimuat, tampilkan "Segera Hadir" (bukan fitur penuh) sebagai
+ * fail-safe, agar tidak berkedip antara konten penuh dan "Segera Hadir".
  */
 export function ComingSoonGate({
   feature,

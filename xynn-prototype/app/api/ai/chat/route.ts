@@ -98,6 +98,7 @@ export async function POST(req: Request) {
   const { reply, usage } = await generateChatReplyWithAI(history, {
     projectContext,
     hasPrototype: !!thread.workspace?.prototypeHtml,
+    hasProject: !!thread.workspaceId,
     model,
     systemPrompt,
     locale: "id",

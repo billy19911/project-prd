@@ -178,6 +178,7 @@ model Workspace {
   prototypeJson       Json?        // { screens: [{id,label,order}], generatedAt }
   themeTokensJson     Json?        // token tema tersimpan (warna, tipografi, bentuk)
   prototypeVersions   PrototypeVersion[]
+  prdVersions         PrdVersion[]
   chatThreads         ChatThread[]
   consultThreads      ConsultThread[]
 
@@ -204,6 +205,20 @@ model PrototypeVersion {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   html        String
   screens     Json?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+}
+
+/// Riwayat versi PRD — agar perubahan (mis. "perbaiki section" dari Konsultasi AI
+/// atau regenerate ulang) tidak menimpa versi lama secara permanen.
+/// Disimpan maksimal N versi terakhir per workspace (dipangkas saat menyimpan).
+model PrdVersion {
+  id          String   @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fullPrdMd   String
   note        String?
   createdAt   DateTime @default(now())
 

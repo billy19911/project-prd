@@ -30,6 +30,72 @@ timestamp migrasi Prisma).
 
 ---
 
+## [v1.9.0] — Chat Prototype (Ide → PRD) & Konsultasi AI yang Menyambung ke Project
+
+Menata ulang dua fitur agar tidak lagi jadi "chatbot lepas": **Chat Prototype**
+menuntun dari ide mentah menjadi PRD, dan **Konsultasi AI** dapat menerapkan
+perbaikan langsung ke PRD/prototype project.
+
+### Added — Chat Prototype: dari ide → PRD
+
+- **Persona baru** (`lib/chat-prompt.ts`): analis produk yang mempertajam
+  *workflow*, mengusulkan pertanyaan tambah/kurang, dan memberi analisa +
+  hipotesis — bukan sekadar menjawab.
+- **`generatePrdFromChat()`** (`lib/ai.ts`) + `buildPrdFromChatPrompt`: menyimpulkan
+  PRD 12 seksi dari transkrip percakapan.
+- **API**: `POST /api/chat/threads/[id]/draft-prd` (hasilkan draf, tidak simpan)
+  & `POST /api/chat/threads/[id]/apply` (buat project + isi `fullPrdMd` +
+  generate mindmap dari percakapan, lalu tautkan thread).
+- **UI `/chat`**: tombol **"Susun PRD"**, panel tinjau/edit draf, tombol
+  **"Terapkan ke Project"** → arahkan ke project baru.
+- Chat kini menyadari ada/tidaknya project (`hasProject`).
+
+### Added — Konsultasi AI menyambung ke regenerate
+
+- UI `/consult` kini punya **dropdown pilih project**; thread dibuat dengan
+  `workspaceId`, sehingga konsultasi punya konteks PRD + Style Guide + layar
+  prototype.
+- **Rekomendasi aksi** dari AI sebagai blok teks `[[ACTION:fix-prd|…]]` /
+  `[[ACTION:regen-screen|…]]`, diparse oleh `parseConsultActions()` dan
+  ditampilkan sebagai tombol.
+- **Panel aksi manual** yang **selalu tersedia** (pilih section PRD / screen) —
+  tidak bergantung kepatuhan model, agar fitur selalu bisa dipakai.
+- **API**: `POST /api/consult/threads/[id]/apply` — menjalankan aksi
+  `fix-prd` (perbaiki satu section PRD) atau `regen-screen` (regenerate satu
+  layar prototype). `fixPrdSectionWithAI()` ditambahkan di `lib/ai.ts`.
+
+### Added — Streaming (SSE)
+
+- **`chatCompletionStream()`** + `generateChatReplyStream()` di `lib/ai.ts`.
+- **`POST /api/ai/chat/stream`** — Server-Sent Events: balasan muncul bertahap.
+- UI `/chat` membaca stream & menampilkan teks saat ditulis.
+
+### Added — Riwayat versi PRD
+
+- **Model `PrdVersion`** (+ migrasi `20260918085344_prd_versions`), `MAX_PRD_VERSIONS = 10`.
+- **API**: `GET /api/workspace/prd-versions`, `POST /api/workspace/prd-versions/restore`.
+- **UI**: panel "Riwayat versi PRD" di tab PRD (lihat & pulihkan). Versi lama
+  disimpan otomatis sebelum PRD diubah (mis. dari Konsultasi AI).
+
+### Added — Uji
+
+- `tests/consult-prompt.test.mjs` diperluas (18 uji: parser aksi, instruksi aksi,
+  judul) dan `tests/chat-prompt.test.mjs` disesuaikan ke persona baru
+  (+ `buildPrdFromChatPrompt`). Total suite **217 uji**.
+
+### Changed
+
+- `lib/consult-prompt.ts` — prompt konsultan memuat instruksi aksi + daftar layar.
+- `lib/chat-prompt.ts` — persona & instruksi baru.
+- Komentar `lib/consult-prompt.ts` diperjelas soal format blok aksi.
+
+### Catatan
+
+- Blok `[[ACTION:…]]` dari model **belum konsisten** muncul (kadang diabaikan);
+  karena itu tombol aksi manual ditambahkan sebagai jalur utama yang andal.
+
+---
+
 ## [v1.8.0] — Integrasi Midtrans Snap (Sandbox) untuk Testing Pembayaran
 
 Menyambungkan alur checkout ke **Midtrans Snap**. Default **Sandbox** (uang
@@ -922,12 +988,12 @@ Migrasi: `20260916001551_workspace_locale`
 | Metrik | Jumlah |
 | :--- | ---: |
 | Halaman (`page.tsx`) | 26 |
-| Endpoint API (`route.ts`) | 49 |
+| Endpoint API (`route.ts`) | 55 |
 | Komponen React (`components/**/*.tsx`) | 30 |
-| Modul library (`lib/*.ts`) | 31 |
-| Model Prisma | 21 |
+| Modul library (`lib/*.ts`) | 32 |
+| Model Prisma | 22 |
 | Enum Prisma | 7 |
-| Migrasi database | 18 |
+| Migrasi database | 19 |
 | Tier langganan (saat ini) | **4** (Free · Starter · Pro · Enterprise) |
 
 ---

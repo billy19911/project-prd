@@ -3,7 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isPaid } from "@/lib/access";
-import { generateConsultReplyWithAI, deriveConsultTitle } from "@/lib/ai";
+import {
+  generateConsultReplyWithAI,
+  deriveConsultTitle,
+  parseConsultActions,
+} from "@/lib/ai";
 import { recordAiUsage } from "@/lib/ai-usage";
 import { guardFeature } from "@/lib/feature-guard";
 
@@ -55,7 +59,13 @@ export async function POST(req: Request) {
     where: { id: threadId, userId },
     include: {
       workspace: {
-        select: { id: true, title: true, fullPrdMd: true, styleGuideMd: true },
+        select: {
+          id: true,
+          title: true,
+          fullPrdMd: true,
+          styleGuideMd: true,
+          prototypeJson: true,
+        },
       },
       messages: { orderBy: { createdAt: "asc" }, select: { role: true, content: true } },
     },
@@ -95,8 +105,15 @@ export async function POST(req: Request) {
   const model = aiConfig?.prdModel || "OpenCodeCombo";
   const systemPrompt = aiConfig?.systemPrompt || undefined;
 
+  // Daftar label screen prototype (untuk aksi "regenerate screen").
+  const screens =
+    (thread.workspace?.prototypeJson as { screens?: { label?: string }[] } | null)
+      ?.screens?.map((s) => s.label).filter((l): l is string => !!l) ?? [];
+
   const { reply, usage } = await generateConsultReplyWithAI(history, {
     projectContext,
+    hasProject: !!thread.workspaceId,
+    availableScreens: screens,
     model,
     systemPrompt,
     locale: "id",
@@ -109,8 +126,11 @@ export async function POST(req: Request) {
     );
   }
 
+  // Pisahkan blok aksi dari teks; simpan teks bersih, kirim aksi ke client.
+  const { text: cleanReply, actions } = parseConsultActions(reply);
+
   await prisma.consultMessage.create({
-    data: { threadId, role: "assistant", content: reply },
+    data: { threadId, role: "assistant", content: cleanReply },
   });
 
   // Perbarui judul thread dari pesan pertama, dan waktu update.
@@ -125,5 +145,5 @@ export async function POST(req: Request) {
 
   await recordAiUsage(userId, "consult", usage);
 
-  return NextResponse.json({ reply });
+  return NextResponse.json({ reply: cleanReply, actions });
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Sparkles,
   ArrowLeft,
@@ -10,6 +11,9 @@ import {
   Plus,
   Loader2,
   Trash2,
+  FileText,
+  X,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { buttonClasses } from "@/components/ui/button";
@@ -62,7 +66,11 @@ function ChatWorkspace() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [booting, setBooting] = useState(true);
+  const [prdDraft, setPrdDraft] = useState<string | null>(null);
+  const [draftingPrd, setDraftingPrd] = useState(false);
+  const [applyingPrd, setApplyingPrd] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   /* ---------- muat daftar thread ---------- */
   const loadThreads = async () => {
@@ -180,31 +188,118 @@ function ChatWorkspace() {
     setDraft("");
     setSending(true);
 
+    const aiId = `ai-${Date.now()}`;
+    // Placeholder balasan assistant yang diisi bertahap dari stream.
+    setMessages((prev) => [...prev, { id: aiId, role: "assistant", content: "" }]);
+
     try {
-      const res = await fetch("/api/ai/chat", {
+      const res = await fetch("/api/ai/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ threadId: tid, message: text }),
       });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Gagal mengirim");
-      setMessages((prev) => [
-        ...prev,
-        { id: `ai-${Date.now()}`, role: "assistant", content: d.reply },
-      ]);
+      if (!res.ok || !res.body) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Gagal mengirim");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let acc = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          const payload = t.slice(5).trim();
+          if (!payload) continue;
+          let evt: { delta?: string; done?: boolean; error?: string } | null = null;
+          try {
+            evt = JSON.parse(payload);
+          } catch {
+            continue;
+          }
+          if (evt?.error) throw new Error(evt.error);
+          if (evt?.delta) {
+            acc += evt.delta;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === aiId ? { ...m, content: acc } : m))
+            );
+          }
+        }
+      }
+
+      if (!acc.trim()) {
+        throw new Error("Tidak ada balasan. Coba lagi.");
+      }
       void loadThreads();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal mengirim pesan");
-      // Kembalikan draft agar tidak hilang.
+      // Kembalikan draft & buang balasan kosong.
       setDraft(text);
-      setMessages((prev) => prev.filter((m) => !m.id.startsWith("local-")));
+      setMessages((prev) =>
+        prev.filter((m) => !m.id.startsWith("local-") && !(m.id === aiId && !m.content))
+      );
     } finally {
       setSending(false);
     }
   };
 
+  /* ---------- simpulkan & terapkan PRD ---------- */
+  const draftPrd = async () => {
+    if (!activeId) {
+      toast.error("Mulai percakapan dulu sebelum menyusun PRD.");
+      return;
+    }
+    setDraftingPrd(true);
+    try {
+      const res = await fetch(`/api/chat/threads/${activeId}/draft-prd`, {
+        method: "POST",
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Gagal menyusun PRD");
+      setPrdDraft(d.prd as string);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menyusun PRD");
+    } finally {
+      setDraftingPrd(false);
+    }
+  };
+
+  const applyPrd = async () => {
+    if (!activeId || !prdDraft) return;
+    setApplyingPrd(true);
+    try {
+      const res = await fetch(`/api/chat/threads/${activeId}/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prd: prdDraft }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Gagal menerapkan PRD");
+      toast.success("Project dibuat! Mengarahkan ke project...");
+      router.push(`/project/${d.workspaceId}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menerapkan PRD");
+    } finally {
+      setApplyingPrd(false);
+    }
+  };
+
   /* ---------- gate PRO ---------- */
-  if (!subLoading && !canUsePrototype) {
+  // Selama status langganan dimuat, tampilkan rangka (bukan konten chat penuh)
+  // agar tidak ada kedipan konten lalu tertimpa layar lock.
+  if (subLoading) {
+    return <ChatSkeleton />;
+  }
+
+  if (!canUsePrototype) {
     return (
       <div className="mx-auto max-w-2xl">
         <div className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface/60 px-6 py-16 text-center">
@@ -229,15 +324,18 @@ function ChatWorkspace() {
   }
 
   return (
-    <div className="space-y-6">
+    // Tinggi halaman dikunci ke viewport (dikurangi offset topbar mobile +
+    // padding `main`), lalu area chat memakai `flex-1 min-h-0` agar mengisi
+    // SISA ruang — tidak lagi menebak tinggi lewat `calc` yang mudah meleset.
+    <div className="flex h-[calc(100dvh-6.5rem)] flex-col gap-4 lg:h-[calc(100dvh-4rem)]">
       <PageHeader
         title="Chat Prototype"
-        description="Susun kebutuhan prototype sambil mengobrol. Prototype di-generate dari tab Prototype."
+        description="Dari ide mentah jadi PRD: AI mempertajam workflow, mengusulkan pertanyaan & analisa, lalu menyimpulkan PRD untuk kamu terapkan."
       />
 
-      <div className="grid h-[calc(100dvh-14rem)] min-h-[420px] overflow-hidden rounded-[var(--radius-card)] border border-border lg:h-auto lg:min-h-[600px] lg:grid-cols-[260px_1fr]">
+      <div className="grid min-h-0 flex-1 overflow-hidden rounded-[var(--radius-card)] border border-border lg:grid-cols-[260px_1fr]">
         {/* Daftar thread */}
-        <aside className="flex flex-col border-b border-border bg-surface/40 lg:border-b-0 lg:border-r">
+        <aside className="flex min-h-0 flex-col overflow-hidden border-b border-border bg-surface/40 lg:border-b-0 lg:border-r">
           <div className="flex h-11 items-center gap-2 border-b border-border px-3">
             <span className="text-xs font-medium text-foreground">Percakapan</span>
             <button
@@ -271,7 +369,10 @@ function ChatWorkspace() {
                       )}
                     >
                       <button
-                        onClick={() => setActiveId(t.id)}
+                        onClick={() => {
+                          setActiveId(t.id);
+                          setPrdDraft(null);
+                        }}
                         className={cn(
                           "min-w-0 flex-1 truncate text-left text-[11px]",
                           activeId === t.id ? "text-foreground" : "text-muted"
@@ -298,9 +399,32 @@ function ChatWorkspace() {
         </aside>
 
         {/* Ruang percakapan */}
-        <section className="flex flex-col">
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div ref={logRef} className="flex-1 space-y-3 overflow-auto p-4">
+        <section className="relative flex min-h-0 flex-col overflow-hidden">
+          {/* Baris aksi: Susun PRD dari percakapan */}
+          <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
+            <span className="truncate text-xs font-medium text-foreground">
+              {threads.find((t) => t.id === activeId)?.title ?? "Chat Prototype"}
+            </span>
+            <button
+              onClick={() => void draftPrd()}
+              disabled={!activeId || messages.length === 0 || draftingPrd}
+              className={buttonClasses({
+                variant: "secondary",
+                size: "sm",
+                className: "ml-auto h-7 px-2 text-[11px]",
+              })}
+            >
+              {draftingPrd ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <FileText className="h-3 w-3" />
+              )}
+              Susun PRD
+            </button>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div ref={logRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               {messages.length === 0 && !sending ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                   <Sparkles className="h-6 w-6 text-muted" />
@@ -326,7 +450,7 @@ function ChatWorkspace() {
                 ))
               )}
 
-              {sending && (
+              {sending && !messages.some((m) => m.role === "assistant" && m.content) && (
                 <div className="flex items-center gap-2 text-[11px] text-muted">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   Menyusun balasan...
@@ -363,14 +487,89 @@ function ChatWorkspace() {
               </button>
             </div>
           </div>
+
+          {/* Panel draf PRD (overlay) — user review/edit lalu Terapkan */}
+          {prdDraft !== null && (
+            <div className="absolute inset-0 z-10 flex flex-col bg-background">
+              <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
+                <FileText className="h-4 w-4 text-accent" />
+                <span className="text-xs font-medium text-foreground">
+                  Draf PRD — tinjau &amp; edit sebelum diterapkan
+                </span>
+                <button
+                  onClick={() => setPrdDraft(null)}
+                  aria-label="Tutup"
+                  className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-muted hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <textarea
+                value={prdDraft}
+                onChange={(e) => setPrdDraft(e.target.value)}
+                spellCheck={false}
+                className="min-h-0 flex-1 resize-none bg-background p-4 font-mono text-xs leading-relaxed text-foreground outline-none"
+              />
+              <div className="flex items-center justify-end gap-2 border-t border-border p-3">
+                <button
+                  onClick={() => setPrdDraft(null)}
+                  className={buttonClasses({ variant: "secondary", size: "sm" })}
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => void applyPrd()}
+                  disabled={applyingPrd || !prdDraft.trim()}
+                  className={buttonClasses({ variant: "primary", size: "sm" })}
+                >
+                  {applyingPrd ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Check className="h-3.5 w-3.5" />
+                  )}
+                  Terapkan ke Project
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </div>
 
-      <p className="mt-3 flex items-center gap-1.5 text-[10px] text-muted">
+      <p className="flex items-center gap-1.5 text-[10px] text-muted">
         <ArrowLeft className="h-3 w-3" />
         Setelah alur jelas, buka sebuah project lalu generate prototype dari tab
         Prototype.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Rangka pemuatan untuk Chat Prototype. Tampil selama status langganan dimuat
+ * sehingga konten chat tidak berkedip lalu tertimpa layar lock.
+ */
+function ChatSkeleton() {
+  return (
+    <div className="flex h-[calc(100dvh-6.5rem)] flex-col gap-4 lg:h-[calc(100dvh-4rem)]">
+      <PageHeader
+        title="Chat Prototype"
+        description="Dari ide mentah jadi PRD: AI mempertajam workflow, mengusulkan pertanyaan & analisa, lalu menyimpulkan PRD untuk kamu terapkan."
+      />
+      <div className="grid min-h-0 flex-1 overflow-hidden rounded-[var(--radius-card)] border border-border lg:grid-cols-[260px_1fr]">
+        <aside className="hidden min-h-0 flex-col gap-2 border-r border-border bg-surface/40 p-3 lg:flex">
+          <div className="h-8 w-full animate-pulse rounded-md bg-surface-2" />
+          <div className="h-7 w-full animate-pulse rounded-md bg-surface-2/70" />
+          <div className="h-7 w-3/4 animate-pulse rounded-md bg-surface-2/70" />
+        </aside>
+        <section className="flex min-h-0 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted" />
+          </div>
+          <div className="border-t border-border p-3">
+            <div className="h-11 w-full animate-pulse rounded-lg bg-surface-2" />
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

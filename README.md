@@ -246,7 +246,7 @@ koma untuk beberapa admin), lalu **login ulang**. Akses `/admin`.
 
 ### Pengujian
 
-`npm test` menjalankan 206 uji (`access` · `billing-cycle` · `midtrans` · `theme` ·
+`npm test` menjalankan 217 uji (`access` · `billing-cycle` · `midtrans` · `theme` ·
 `prompt` · `chat-prompt` · `consult-prompt` · `feature-flags` · `login-error` ·
 `mindmap-compare` · `template-meta` · `wizard-flow` · `workspace-access`)
 memakai **`node:test` bawaan Node** (tanpa dependency tambahan). Cakupannya:
@@ -259,6 +259,8 @@ memakai **`node:test` bawaan Node** (tanpa dependency tambahan). Cakupannya:
   tahun kabisat.
 - **Integrasi Midtrans** (`lib/midtrans.ts`): rumus & verifikasi signature
   webhook (SHA512), serta mapping status transaksi.
+- **Prompt Chat & Konsultasi** (`lib/chat-prompt.ts`, `lib/consult-prompt.ts`):
+  batas riwayat/token, dan `parseConsultActions` (memisah blok aksi dari teks).
 - Rantai prasyarat `computeStepAvailability`.
 
 Yang terpenting: uji ini **menutup dua mode kegagalan senyap** saat menambah
@@ -301,7 +303,7 @@ pembayaran dapat diatur lewat `/admin/payments` sehingga tidak wajib di `.env`.
 
 ## Database & Migrasi
 
-### Model (21)
+### Model (22)
 
 | Model | Fungsi |
 | :--- | :--- |
@@ -309,12 +311,13 @@ pembayaran dapat diatur lewat `/admin/payments` sehingga tidak wajib di `.env`.
 | `Subscription` | Plan, status, kuota (`prdLimit`, `prototypeLimit`, `*UsedThisMonth`), `billingCycle`, `startedAt`, `validUntil`. Masa aktif dihitung **berbasis kalender** (`lib/billing.ts`). |
 | `Workspace` | Inti proyek: `mindmapJson`, `fullPrdMd`, `tasksJson`, `styleGuideMd`, `prototypeHtml`, tech stack, privasi & data fork. |
 | `PrototypeVersion` | Riwayat versi HTML prototype (dipangkas maks. 10/proyek). |
+| `PrdVersion` | Riwayat versi PRD (dipangkas maks. 10/proyek). |
 | `ApiKey` | Token CLI (`keyHash` SHA-256, `lastUsedAt`). |
 | `Plan` | Definisi paket yang bisa diubah admin (harga, `prdLimit`, `prototypeLimit`, fitur, `isPopular`, `sortOrder`). |
 | `SavedTheme` | Library tema lintas-project (ENTERPRISE). |
 | `Template` | Template PRD siap pakai (prefill wizard). |
-| `ChatThread` / `ChatMessage` | Chat prototype (PRO ke atas). |
-| `ConsultThread` / `ConsultMessage` | Konsultasi AI (berbayar). |
+| `ChatThread` / `ChatMessage` | Chat prototype — menuntun ide → PRD (PRO ke atas). |
+| `ConsultThread` / `ConsultMessage` | Konsultasi AI — analisa + aksi regenerate (berbayar). |
 | `Organization` / `Membership` / `OrganizationInvite` | Kolaborasi tim (ENTERPRISE) + seat & undangan. |
 | `PaymentConfig` | Konfigurasi gateway (Midtrans/Xendit) + `serverKeyEncrypted`. |
 | `Voucher` | Kode diskon (persen/nominal, `maxUses`, `usedCount`). |
@@ -353,6 +356,7 @@ pembayaran dapat diatur lewat `/admin/payments` sehingga tidak wajib di `.env`.
 | `20260917103925_feature_flags` | Tabel `FeatureFlag` + enum `FeatureStatus`. |
 | `20260917104105_consult_threads` | Tabel `ConsultThread` & `ConsultMessage`. |
 | `20260918072006_transaction_payment_ref` | `Transaction.paymentRef` & `gatewayPayload` (integrasi Midtrans). |
+| `20260918085344_prd_versions` | Tabel `PrdVersion` (riwayat versi PRD). |
 
 ### Perintah umum
 
@@ -566,6 +570,38 @@ Mapping status Midtrans: `settlement`/`capture`→**SUCCESS**,
 
 ---
 
+## Chat Prototype & Konsultasi AI
+
+Dua fitur ini **bukan chatbot lepas** — keduanya menyambung ke inti produk
+(PRD & prototype).
+
+### Chat Prototype (`/chat`) — dari ide mentah jadi PRD
+
+- AI berperan **analis produk**: mempertajam **workflow** aplikasi (alur,
+  aktor, jalur gagal), mengusulkan **pertanyaan tambah/kurang**, dan memberi
+  **analisa + hipotesis**.
+- Kapan pun, user menekan **"Susun PRD"** → AI menyimpulkan **draf PRD** 12
+  seksi dari percakapan. User **meninjau & mengedit** draf, lalu **"Terapkan ke
+  Project"** → dibuat project baru + `fullPrdMd` terisi + mindmap dari
+  percakapan, dan thread ditautkan ke project itu.
+- **Gate:** PRO ke atas. Balasan tampil **bertahap (streaming SSE)**.
+
+### Konsultasi AI (`/consult`) — analisa + aksi terarah
+
+- User **memilih project**; konsultan melihat konteks PRD + Style Guide + layar
+  prototype.
+- AI dapat mengusulkan **aksi** (blok `[[ACTION:…]]`) yang muncul sebagai tombol:
+  - **Perbaiki PRD** satu section → `fix-prd`
+  - **Regenerate** satu layar prototype → `regen-screen`
+- Selain itu tersedia **panel aksi manual** (pilih section PRD / layar) yang
+  **selalu aktif** — agar fitur tetap bisa dipakai walau model tidak
+  mengeluarkan blok aksi.
+- Setiap perubahan PRD otomatis menyimpan versi lama ke **`PrdVersion`** (bisa
+  dipulihkan dari tab PRD).
+- **Gate:** STARTER ke atas.
+
+---
+
 ## Referensi API
 
 49 endpoint di bawah `app/api/`. Endpoint terproteksi memakai sesi
@@ -590,8 +626,9 @@ kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 | `POST /api/ai/styleguide` | Berbayar | Style Guide (butuh `tasksJson`). **402** bila Free. |
 | `POST /api/ai/full-prd` | Berbayar | PRD lengkap. **402** bila Free. |
 | `POST /api/ai/prototype` | **Pro** | Prototype HTML dari PRD + Style Guide. **402** non-Pro · **429** kuota habis · **400** prasyarat belum ada. |
-| `POST /api/ai/chat` | **Pro** + flag `chat` | Balasan Chat Prototype. **403** bila fitur belum LIVE. |
-| `POST /api/ai/consult` | Berbayar + flag `consult` | Balasan Konsultasi AI (arsitektur). **403** bila fitur belum LIVE. |
+| `POST /api/ai/chat` | **Pro** + flag `chat` | Balasan Chat Prototype (non-stream). **403** bila fitur belum LIVE. |
+| `POST /api/ai/chat/stream` | **Pro** + flag `chat` | Balasan Chat Prototype **streaming (SSE)**: `data: {"delta":…}` lalu `data: {"done":true}`. |
+| `POST /api/ai/consult` | Berbayar + flag `consult` | Balasan Konsultasi AI; mengembalikan `{ reply, actions }`. **403** bila fitur belum LIVE. |
 
 > **Prasyarat `prototype`:** workspace harus sudah punya `fullPrdMd` **dan**
 > `styleGuideMd`. Kuota terpisah dari PRD: PRO 20/bulan, ENTERPRISE unlimited
@@ -634,8 +671,13 @@ kecuali `questions` dan `techstack` yang sengaja hanya memeriksa sesi
 | :--- | :--- | :--- |
 | `GET/POST/DELETE /api/chat/threads` | **Pro** + flag `chat` | Daftar/buat/hapus thread chat. |
 | `GET /api/chat/threads/[id]` | **Pro** + flag `chat` | Satu thread + pesannya. |
-| `GET/POST/DELETE /api/consult/threads` | Berbayar + flag `consult` | Daftar/buat/hapus thread konsultasi. |
+| `POST /api/chat/threads/[id]/draft-prd` | **Pro** + flag `chat` | Simpulkan **draf PRD** dari percakapan (tidak disimpan). |
+| `POST /api/chat/threads/[id]/apply` | **Pro** + flag `chat` | Terapkan draf → buat project + `fullPrdMd` + mindmap, tautkan thread. |
+| `GET/POST/DELETE /api/consult/threads` | Berbayar + flag `consult` | Daftar/buat/hapus thread konsultasi (POST terima `{ workspaceId? }`). |
 | `GET /api/consult/threads/[id]` | Berbayar + flag `consult` | Satu thread konsultasi + pesannya. |
+| `POST /api/consult/threads/[id]/apply` | Berbayar + flag `consult` | Jalankan aksi: `fix-prd` (perbaiki section PRD) / `regen-screen` (regenerate layar). |
+| `GET /api/workspace/prd-versions` | Akses workspace | Riwayat versi PRD (metadata). |
+| `POST /api/workspace/prd-versions/restore` | Akses edit | Pulihkan versi PRD lama. |
 
 ### Organisasi Tim (ENTERPRISE)
 
@@ -926,8 +968,8 @@ Proyek privat (`"private": true`), versi `0.1.0`.
 | **Langganan 4 tier (Enterprise)** | Selesai |
 | **Organisasi Tim + akses workspace** | Selesai (ENTERPRISE) |
 | **Template PRD siap pakai** | Selesai (berbayar) |
-| **Konsultasi AI (`/consult`)** | Selesai — dikunci (Segera Hadir, lihat Flag Rilis) |
-| Chat Prototype (`/chat`) | Selesai — terkunci AI, dikunci (Segera Hadir) |
+| **Konsultasi AI (`/consult`)** | Selesai — analisa + aksi regenerate (dikunci via Flag Rilis) |
+| **Chat Prototype (`/chat`)** | Selesai — ide → PRD, streaming SSE (dikunci via Flag Rilis) |
 | **Flag rilis fitur (`/admin/features`)** | Selesai (LIVE/SOON/HIDDEN di DB) |
 
 > **Catatan — Flag Rilis Fitur.** Fitur bisa dibangun penuh tapi tetap

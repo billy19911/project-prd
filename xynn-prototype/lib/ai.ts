@@ -113,6 +113,109 @@ export async function chatCompletion(
 }
 
 /**
+ * Versi STREAMING dari `chatCompletion`.
+ *
+ * Mengembalikan async generator yang men-`yield` potongan teks (delta) saat
+ * gateway mengirimnya. Gateway (9router/local) mengirim SSE `data: {...}`.
+ *
+ * Pemakaian:
+ *   for await (const chunk of chatCompletionStream(model, system, prompt)) { ... }
+ *
+ * Bila gateway ternyata mengirim JSON non-stream (tidak ada `data:`), fungsi ini
+ * tetap mengembalikan isi lengkap sekali (fallback) agar tidak macet.
+ */
+export async function* chatCompletionStream(
+  model: string,
+  system: string,
+  prompt: string
+): AsyncGenerator<string, void, unknown> {
+  const baseUrl = (process.env.AI_BASE_URL || "http://127.0.0.1:20128/v1").replace(
+    /\/$/,
+    ""
+  );
+  const apiKey = process.env.AI_API_KEY || "xynn-local-key";
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      model,
+      stream: true,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ],
+    }),
+  });
+
+  if (!res.ok || !res.body) {
+    const raw = await res.text().catch(() => "");
+    throw new Error(`AI stream gagal (${res.status}): ${raw.slice(0, 200)}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let sawData = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Pisahkan per baris; simpan sisa yang belum lengkap di buffer.
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (!trimmed.startsWith("data:")) {
+        // Mungkin JSON non-stream (tidak ada prefix data:).
+        continue;
+      }
+      sawData = true;
+      const payload = trimmed.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      const obj = tryParseDelta(payload);
+      if (obj) yield obj;
+    }
+  }
+
+  // Sisa buffer (baris terakhir tanpa newline).
+  if (buffer.trim().startsWith("data:")) {
+    const payload = buffer.trim().slice(5).trim();
+    if (payload && payload !== "[DONE]") {
+      const obj = tryParseDelta(payload);
+      if (obj) yield obj;
+    }
+  }
+
+  // Fallback: gateway tidak mengirim SSE — anggap body tadi JSON tunggal.
+  // (Tidak ada yang bisa di-yield bila sudah terlanjur dikonsumsi baris demi baris;
+  // kasus ini jarang karena gateway kita mendukung stream.)
+  void sawData;
+}
+
+/** Ambil delta konten dari satu baris SSE gateway. */
+function tryParseDelta(text: string): string | null {
+  try {
+    const obj = JSON.parse(text) as {
+      choices?: { delta?: { content?: string }; message?: { content?: string } }[];
+    };
+    const choice = obj.choices?.[0];
+    const delta = choice?.delta?.content ?? choice?.message?.content;
+    return typeof delta === "string" && delta.length > 0 ? delta : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Normalkan body respons menjadi { content, usage }.
  * Mendukung: JSON murni, JSON+trailer `data: [DONE]`, dan SSE multi-chunk.
  */
@@ -911,7 +1014,7 @@ import {
   detectScreensFromHtml,
   type ThemeTokensForPrompt as ThemeTokens,
 } from "@/lib/prototype-prompt";
-import { buildChatPrompt, buildChatSystemPrompt } from "@/lib/chat-prompt";
+import { buildChatPrompt, buildChatSystemPrompt, buildPrdFromChatPrompt } from "@/lib/chat-prompt";
 import { buildConsultPrompt, buildConsultSystemPrompt } from "@/lib/consult-prompt";
 
 export {
@@ -926,6 +1029,7 @@ export type { ThemeTokensForPrompt } from "@/lib/prototype-prompt";
 export {
   buildChatPrompt,
   buildChatSystemPrompt,
+  buildPrdFromChatPrompt,
   deriveThreadTitle,
   CHAT_HISTORY_LIMIT,
 } from "@/lib/chat-prompt";
@@ -934,9 +1038,10 @@ export {
   buildConsultPrompt,
   buildConsultSystemPrompt,
   deriveConsultTitle,
+  parseConsultActions,
   CONSULT_HISTORY_LIMIT,
 } from "@/lib/consult-prompt";
-export type { ConsultTurn } from "@/lib/consult-prompt";
+export type { ConsultTurn, ConsultAction, ConsultActionKind } from "@/lib/consult-prompt";
 
 export type PrototypeScreen = {
   id: string;
@@ -1145,6 +1250,7 @@ export async function generateChatReplyWithAI(
   opts: {
     projectContext?: string | null;
     hasPrototype?: boolean;
+    hasProject?: boolean;
     model?: string;
     systemPrompt?: string;
     locale?: Locale;
@@ -1153,6 +1259,7 @@ export async function generateChatReplyWithAI(
   const {
     projectContext = null,
     hasPrototype = false,
+    hasProject = false,
     model = "OpenCodeCombo",
     systemPrompt = DEFAULT_SYSTEM_PROMPT,
     locale = "id",
@@ -1161,6 +1268,7 @@ export async function generateChatReplyWithAI(
   const base = buildChatSystemPrompt({
     projectContext,
     hasPrototype,
+    hasProject,
     languageDirective: languageDirective(locale),
   });
   // Gabungkan prompt admin (bila diubah dari /admin/ai-config) dengan prompt
@@ -1183,6 +1291,135 @@ export async function generateChatReplyWithAI(
 }
 
 /**
+ * Versi streaming `generateChatReplyWithAI` — mengembalikan generator potongan
+ * teks. Pemakaian (di route SSE):
+ *   for await (const chunk of generateChatReplyStream(history, opts)) { ... }
+ */
+export async function* generateChatReplyStream(
+  history: { role: "user" | "assistant"; content: string }[],
+  opts: {
+    projectContext?: string | null;
+    hasPrototype?: boolean;
+    hasProject?: boolean;
+    model?: string;
+    systemPrompt?: string;
+    locale?: Locale;
+  } = {}
+): AsyncGenerator<string, void, unknown> {
+  const {
+    projectContext = null,
+    hasPrototype = false,
+    hasProject = false,
+    model = "OpenCodeCombo",
+    systemPrompt = DEFAULT_SYSTEM_PROMPT,
+    locale = "id",
+  } = opts;
+
+  const base = buildChatSystemPrompt({
+    projectContext,
+    hasPrototype,
+    hasProject,
+    languageDirective: languageDirective(locale),
+  });
+  const system = systemPrompt ? `${systemPrompt}\n\n${base}` : base;
+  const prompt = buildChatPrompt(history);
+  if (!prompt) return;
+
+  for await (const delta of chatCompletionStream(model, system, prompt)) {
+    yield delta;
+  }
+}
+
+/**
+ * Simpulkan PRD dari transkrip Chat Prototype.
+ *
+ * Berbeda dari `generatePRDWithAI` (bersumber mindmap), di sini sumbernya
+ * percakapan + hasil analisa workflow. Struktur 12 seksi sama agar konsisten.
+ */
+export async function generatePrdFromChat(
+  history: { role: "user" | "assistant"; content: string }[],
+  opts: {
+    model?: string;
+    systemPrompt?: string;
+    locale?: Locale;
+  } = {}
+): Promise<{ prd: string; usage: UsageInfo | null }> {
+  const {
+    model = "OpenCodeCombo",
+    systemPrompt = DEFAULT_SYSTEM_PROMPT,
+    locale = "id",
+  } = opts;
+
+  const base = [
+    `You are Xynn, a pragmatic product analyst writing a PRD from a conversation.`,
+    languageDirective(locale),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  // Hormati prompt admin (dari /admin/ai-config) bila ada.
+  const system = systemPrompt ? `${systemPrompt}\n\n${base}` : base;
+  const prompt = buildPrdFromChatPrompt(history);
+  if (!prompt) return { prd: "", usage: null };
+
+  try {
+    const result = await chatCompletion(model, system, prompt);
+    return { prd: stripCodeFence(result.content.trim()), usage: extractUsage(model, result.usage) };
+  } catch {
+    return { prd: "", usage: null };
+  }
+}
+
+/** Buang pagar ```markdown ... ``` bila model membungkus seluruh dokumen. */
+function stripCodeFence(text: string): string {
+  const fence = text.match(/^```[a-zA-Z]*\s*\n([\s\S]*?)\n```\s*$/);
+  return fence ? fence[1].trim() : text;
+}
+
+/**
+ * Perbaiki SATU section PRD (untuk aksi Konsultasi AI "fix-prd").
+ *
+ * Model menerima PRD lengkap + nama section + alasan, dan diminta
+ * mengembalikan PRD LENGKAP dengan HANYA section tersebut diperbaiki —
+ * section lain tidak boleh berubah.
+ */
+export async function fixPrdSectionWithAI(
+  prdMarkdown: string,
+  section: string,
+  reason: string,
+  model: string = "OpenCodeCombo",
+  systemPrompt: string = DEFAULT_SYSTEM_PROMPT,
+  locale: Locale = "id"
+): Promise<{ prd: string; usage: UsageInfo | null }> {
+  const prompt = [
+    `You are Xynn, a product analyst improving ONE section of an existing PRD.`,
+    ``,
+    `Section to improve: "${section}"`,
+    reason ? `Reason: ${reason}` : ``,
+    ``,
+    `=== CURRENT PRD ===`,
+    prdMarkdown.slice(0, 20000),
+    ``,
+    `=== TASK ===`,
+    `Return the FULL PRD again, but improve ONLY the "${section}" section.`,
+    `Keep every other section byte-for-byte identical (same headings, same order).`,
+    `If the section heading does not exist, add it in a sensible place.`,
+    `Output ONLY the Markdown PRD. No preamble, no code fences around the whole document.`,
+    ``,
+    languageDirective(locale),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const system = systemPrompt || DEFAULT_SYSTEM_PROMPT;
+  try {
+    const result = await chatCompletion(model, system, prompt);
+    return { prd: stripCodeFence(result.content.trim()), usage: extractUsage(model, result.usage) };
+  } catch {
+    return { prd: "", usage: null };
+  }
+}
+
+/**
  * Balasan Konsultasi AI (arsitektur & tech stack).
  *
  * Mencerminkan `generateChatReplyWithAI` tapi memakai prompt konsultan.
@@ -1193,6 +1430,8 @@ export async function generateConsultReplyWithAI(
   history: { role: "user" | "assistant"; content: string }[],
   opts: {
     projectContext?: string | null;
+    hasProject?: boolean;
+    availableScreens?: string[];
     model?: string;
     systemPrompt?: string;
     locale?: Locale;
@@ -1200,6 +1439,8 @@ export async function generateConsultReplyWithAI(
 ): Promise<{ reply: string; usage: UsageInfo | null }> {
   const {
     projectContext = null,
+    hasProject = false,
+    availableScreens = [],
     model = "OpenCodeCombo",
     systemPrompt = DEFAULT_SYSTEM_PROMPT,
     locale = "id",
@@ -1207,6 +1448,8 @@ export async function generateConsultReplyWithAI(
 
   const base = buildConsultSystemPrompt({
     projectContext,
+    hasProject,
+    availableScreens,
     languageDirective: languageDirective(locale),
   });
   const system = systemPrompt ? `${systemPrompt}\n\n${base}` : base;

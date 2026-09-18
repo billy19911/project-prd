@@ -10,11 +10,15 @@ import {
   Plus,
   Loader2,
   Trash2,
+  Wand2,
+  FileText,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { buttonClasses } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { ComingSoonGate } from "@/components/coming-soon-gate";
+import { Select } from "@/components/ui/input";
 import { useSubscription } from "@/lib/use-subscription";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +31,29 @@ type Thread = {
 };
 
 type Message = { id: string; role: string; content: string };
+
+type ConsultAction = {
+  kind: "regen-screen" | "fix-prd";
+  target: string;
+  reason: string;
+};
+
+type Project = { id: string; title: string; fullPrdMd?: string | null; prototypeJson?: unknown };
+
+const PRD_SECTIONS = [
+  "Executive Summary",
+  "Problem Statement",
+  "Goals & Non-Goals",
+  "Target Users & Personas",
+  "Core Features",
+  "User Flows",
+  "Screens & UI Structure",
+  "Data Model",
+  "Tech Stack",
+  "Success Metrics",
+  "Milestones / Phases",
+  "Risks & Open Questions",
+];
 
 /**
  * Konsultasi AI — konsultan arsitektur & tech stack.
@@ -60,7 +87,50 @@ function ConsultWorkspace() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [booting, setBooting] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState<string>("");
+  const [actions, setActions] = useState<ConsultAction[]>([]);
+  const [applyingAction, setApplyingAction] = useState<string | null>(null);
+  const [manualKind, setManualKind] = useState<"fix-prd" | "regen-screen">("fix-prd");
+  const [manualTarget, setManualTarget] = useState<string>("");
   const logRef = useRef<HTMLDivElement>(null);
+
+  // Project efektif yang sedang dibahas (thread aktif bila ada, atau pilihan dropdown).
+  const activeWorkspaceId =
+    threads.find((t) => t.id === activeId)?.workspaceId || projectId || "";
+  const activeProject = projects.find((p) => p.id === activeWorkspaceId);
+  const screens: string[] =
+    (activeProject?.prototypeJson as { screens?: { label?: string }[] } | null)
+      ?.screens?.map((s) => s.label)
+      .filter((l): l is string => !!l) ?? [];
+  const hasPrd = !!activeProject?.fullPrdMd;
+  const canApply = !!activeWorkspaceId && (manualKind === "fix-prd" ? hasPrd : screens.length > 0);
+
+  /* ---------- muat daftar project ---------- */
+  useEffect(() => {
+    if (subLoading || !isPaid) return;
+    fetch("/api/workspace")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(
+        (
+          d: {
+            id: string;
+            title: string;
+            fullPrdMd?: string | null;
+            prototypeJson?: unknown;
+          }[]
+        ) =>
+          setProjects(
+            d.map((w) => ({
+              id: w.id,
+              title: w.title,
+              fullPrdMd: w.fullPrdMd ?? null,
+              prototypeJson: w.prototypeJson ?? null,
+            }))
+          )
+      )
+      .catch(() => {});
+  }, [subLoading, isPaid]);
 
   /* ---------- muat daftar thread ---------- */
   const loadThreads = async () => {
@@ -122,7 +192,11 @@ function ConsultWorkspace() {
   /* ---------- aksi ---------- */
   const newThread = async () => {
     try {
-      const res = await fetch("/api/consult/threads", { method: "POST" });
+      const res = await fetch("/api/consult/threads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId: projectId || undefined }),
+      });
       if (!res.ok) throw new Error();
       const t = await res.json();
       setThreads((prev) => [
@@ -131,6 +205,7 @@ function ConsultWorkspace() {
       ]);
       setActiveId(t.id);
       setMessages([]);
+      setActions([]);
     } catch {
       toast.error("Gagal membuat konsultasi");
     }
@@ -158,7 +233,11 @@ function ConsultWorkspace() {
     // Buat thread otomatis bila belum ada.
     let tid = activeId;
     if (!tid) {
-      const res = await fetch("/api/consult/threads", { method: "POST" });
+      const res = await fetch("/api/consult/threads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId: projectId || undefined }),
+      });
       if (!res.ok) {
         toast.error("Gagal membuat konsultasi");
         return;
@@ -166,7 +245,7 @@ function ConsultWorkspace() {
       const t = await res.json();
       tid = t.id;
       setActiveId(t.id);
-      setThreads((prev) => [{ ...t, messageCount: 0 }, ...prev]);
+      setThreads((prev) => [{ ...t, messageCount: 0, workspaceId: t.workspaceId ?? null }, ...prev]);
     }
 
     // Optimistis: tampilkan pesan pengguna langsung.
@@ -175,6 +254,7 @@ function ConsultWorkspace() {
       { id: `local-${Date.now()}`, role: "user", content: text },
     ]);
     setDraft("");
+    setActions([]);
     setSending(true);
 
     try {
@@ -189,6 +269,7 @@ function ConsultWorkspace() {
         ...prev,
         { id: `ai-${Date.now()}`, role: "assistant", content: d.reply },
       ]);
+      setActions(Array.isArray(d.actions) ? d.actions : []);
       void loadThreads();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal mengirim pesan");
@@ -199,8 +280,57 @@ function ConsultWorkspace() {
     }
   };
 
+  const applyAction = async (a: ConsultAction) => {
+    if (!activeId) return;
+    const key = `${a.kind}:${a.target}`;
+    setApplyingAction(key);
+    try {
+      const res = await fetch(`/api/consult/threads/${activeId}/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: a.kind, target: a.target, reason: a.reason }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Gagal menerapkan aksi");
+      toast.success(d.message || "Aksi diterapkan.");
+      setActions((prev) => prev.filter((x) => !(x.kind === a.kind && x.target === a.target)));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menerapkan aksi");
+    } finally {
+      setApplyingAction(null);
+    }
+  };
+
+  // Tombol aksi MANUAL — tidak bergantung blok aksi dari AI (selalu tersedia
+  // bila thread tertaut project). Blok AI tetap jadi bonus bila muncul.
+  const applyManual = async () => {
+    if (!activeId || !manualTarget) return;
+    const key = `manual:${manualKind}:${manualTarget}`;
+    setApplyingAction(key);
+    try {
+      const res = await fetch(`/api/consult/threads/${activeId}/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: manualKind, target: manualTarget }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Gagal menerapkan aksi");
+      toast.success(d.message || "Aksi diterapkan.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menerapkan aksi");
+    } finally {
+      setApplyingAction(null);
+    }
+  };
+
   /* ---------- gate berbayar ---------- */
-  if (!subLoading && !isPaid) {
+  // Selama status langganan dimuat, tampilkan rangka (bukan konten penuh) agar
+  // tidak ada kedipan konten lalu tertimpa layar lock.
+  if (subLoading) {
+    return <ConsultSkeleton />;
+  }
+
+  if (!isPaid) {
     return (
       <div className="mx-auto max-w-2xl">
         <div className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface/60 px-6 py-16 text-center">
@@ -226,15 +356,17 @@ function ConsultWorkspace() {
   }
 
   return (
-    <div className="space-y-6">
+    // Tinggi dikunci ke viewport (offset topbar mobile + padding `main`), area
+    // chat memakai `flex-1 min-h-0` agar mengisi sisa ruang tanpa menebak.
+    <div className="flex h-[calc(100dvh-6.5rem)] flex-col gap-4 lg:h-[calc(100dvh-4rem)]">
       <PageHeader
         title="Konsultasi AI"
         description="Diskusikan arsitektur, tech stack, dan roadmap eksekusi bersama AI konsultan."
       />
 
-      <div className="grid h-[calc(100dvh-14rem)] min-h-[420px] overflow-hidden rounded-[var(--radius-card)] border border-border lg:h-auto lg:min-h-[600px] lg:grid-cols-[260px_1fr]">
+      <div className="grid min-h-0 flex-1 overflow-hidden rounded-[var(--radius-card)] border border-border lg:grid-cols-[260px_1fr]">
         {/* Daftar thread */}
-        <aside className="flex flex-col border-b border-border bg-surface/40 lg:border-b-0 lg:border-r">
+        <aside className="flex min-h-0 flex-col overflow-hidden border-b border-border bg-surface/40 lg:border-b-0 lg:border-r">
           <div className="flex h-11 items-center gap-2 border-b border-border px-3">
             <span className="text-xs font-medium text-foreground">Konsultasi</span>
             <button
@@ -268,7 +400,10 @@ function ConsultWorkspace() {
                       )}
                     >
                       <button
-                        onClick={() => setActiveId(t.id)}
+                        onClick={() => {
+                          setActiveId(t.id);
+                          setActions([]);
+                        }}
                         className={cn(
                           "min-w-0 flex-1 truncate text-left text-[11px]",
                           activeId === t.id ? "text-foreground" : "text-muted"
@@ -295,16 +430,99 @@ function ConsultWorkspace() {
         </aside>
 
         {/* Ruang percakapan */}
-        <section className="flex flex-col">
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div ref={logRef} className="flex-1 space-y-3 overflow-auto p-4">
+        <section className="flex min-h-0 flex-col overflow-hidden">
+          {/* Baris atas: pilih project (konteks konsultasi) */}
+          <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
+            <span className="shrink-0 text-[11px] text-muted">Project</span>
+            <Select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={!!activeId}
+              className="h-7 max-w-[200px] truncate text-[11px]"
+              title={activeId ? "Project terkunci setelah konsultasi dimulai" : undefined}
+            >
+              <option value="">— tanpa project —</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </Select>
+            {activeId && (
+              <span className="truncate text-[10px] text-muted">
+                {activeProject?.title ?? "tanpa project"}
+              </span>
+            )}
+          </div>
+
+          {/* Baris aksi manual: terapkan perubahan ke PRD / prototype */}
+          {activeWorkspaceId && (
+            <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface/30 px-3 py-2">
+              <Wand2 className="h-3.5 w-3.5 shrink-0 text-accent" />
+              <Select
+                value={manualKind}
+                onChange={(e) => {
+                  setManualKind(e.target.value as "fix-prd" | "regen-screen");
+                  setManualTarget("");
+                }}
+                className="h-7 w-auto text-[11px]"
+              >
+                <option value="fix-prd" disabled={!hasPrd}>
+                  Perbaiki PRD
+                </option>
+                <option value="regen-screen" disabled={screens.length === 0}>
+                  Regenerate screen
+                </option>
+              </Select>
+              <Select
+                value={manualTarget}
+                onChange={(e) => setManualTarget(e.target.value)}
+                className="h-7 max-w-[220px] text-[11px]"
+              >
+                <option value="">— pilih —</option>
+                {manualKind === "fix-prd"
+                  ? PRD_SECTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))
+                  : screens.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+              </Select>
+              <button
+                onClick={() => void applyManual()}
+                disabled={!canApply || !manualTarget || !!applyingAction}
+                className={buttonClasses({
+                  variant: "secondary",
+                  size: "sm",
+                  className: "h-7 px-2 text-[11px]",
+                })}
+              >
+                {applyingAction?.startsWith("manual:") ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Wand2 className="h-3 w-3" />
+                )}
+                Terapkan
+              </button>
+              {!hasPrd && manualKind === "fix-prd" && (
+                <span className="text-[10px] text-muted">Project ini belum punya PRD.</span>
+              )}
+            </div>
+          )}
+
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div ref={logRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               {messages.length === 0 && !sending ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                   <Sparkles className="h-6 w-6 text-muted" />
                   <p className="max-w-sm text-xs leading-relaxed text-muted">
                     Tanyakan apa saja soal arsitektur, pilihan tech stack,
-                    tantangan skalabilitas, atau roadmap eksekusi. Saya bantu
-                    dengan rekomendasi konkret beserta trade-off-nya.
+                    tantangan skalabilitas, atau roadmap eksekusi. Pilih sebuah
+                    project agar saran bisa langsung diterapkan ke PRD/prototype.
                   </p>
                 </div>
               ) : (
@@ -321,6 +539,46 @@ function ConsultWorkspace() {
                     {m.content}
                   </div>
                 ))
+              )}
+
+              {/* Tombol aksi terarah dari konsultan (bila ada) */}
+              {actions.length > 0 && !sending && (
+                <div className="space-y-2 rounded-xl border border-accent/30 bg-accent/5 p-3">
+                  <p className="flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+                    <Wand2 className="h-3.5 w-3.5 text-accent" />
+                    Saran aksi — klik untuk menerapkan
+                  </p>
+                  {actions.map((a) => {
+                    const key = `${a.kind}:${a.target}`;
+                    const busy = applyingAction === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => void applyAction(a)}
+                        disabled={!!applyingAction}
+                        className="flex w-full items-start gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-left text-[11px] transition-colors hover:border-accent/50 disabled:opacity-60"
+                      >
+                        {busy ? (
+                          <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-accent" />
+                        ) : a.kind === "regen-screen" ? (
+                          <RefreshCw className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+                        ) : (
+                          <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+                        )}
+                        <span className="min-w-0">
+                          <span className="font-medium text-foreground">
+                            {a.kind === "regen-screen"
+                              ? `Regenerate screen: ${a.target}`
+                              : `Perbaiki PRD: ${a.target}`}
+                          </span>
+                          {a.reason && (
+                            <span className="mt-0.5 block text-muted">{a.reason}</span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
 
               {sending && (
@@ -363,10 +621,40 @@ function ConsultWorkspace() {
         </section>
       </div>
 
-      <p className="mt-3 flex items-center gap-1.5 text-[10px] text-muted">
+      <p className="flex items-center gap-1.5 text-[10px] text-muted">
         <ArrowLeft className="h-3 w-3" />
         Untuk spesifikasi siap-kode, buat project lalu generate PRD lengkap.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Rangka pemuatan untuk Konsultasi AI. Tampil selama status langganan dimuat
+ * sehingga konten tidak berkedip lalu tertimpa layar lock.
+ */
+function ConsultSkeleton() {
+  return (
+    <div className="flex h-[calc(100dvh-6.5rem)] flex-col gap-4 lg:h-[calc(100dvh-4rem)]">
+      <PageHeader
+        title="Konsultasi AI"
+        description="Diskusikan arsitektur, tech stack, dan roadmap eksekusi bersama AI konsultan."
+      />
+      <div className="grid min-h-0 flex-1 overflow-hidden rounded-[var(--radius-card)] border border-border lg:grid-cols-[260px_1fr]">
+        <aside className="hidden min-h-0 flex-col gap-2 border-r border-border bg-surface/40 p-3 lg:flex">
+          <div className="h-8 w-full animate-pulse rounded-md bg-surface-2" />
+          <div className="h-7 w-full animate-pulse rounded-md bg-surface-2/70" />
+          <div className="h-7 w-3/4 animate-pulse rounded-md bg-surface-2/70" />
+        </aside>
+        <section className="flex min-h-0 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted" />
+          </div>
+          <div className="border-t border-border p-3">
+            <div className="h-11 w-full animate-pulse rounded-lg bg-surface-2" />
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

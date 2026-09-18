@@ -21,6 +21,8 @@ import {
   CheckCircle2,
   Lock,
   Trash2,
+  History,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui/page-header";
@@ -728,7 +730,15 @@ export default function ProjectDetailPage() {
             <CardBody className={cn(tab === "prototype" && "p-3 sm:p-3")}>
               {tab === "prd" &&
                 (workspace.fullPrdMd ? (
-                  <MarkdownRenderer markdown={workspace.fullPrdMd} storageKey={`${id}-prd`} />
+                  <div className="space-y-3">
+                    <PrdHistory
+                      workspaceId={id as string}
+                      onRestored={(prd) =>
+                        setWorkspace((prev) => (prev ? { ...prev, fullPrdMd: prd } : null))
+                      }
+                    />
+                    <MarkdownRenderer markdown={workspace.fullPrdMd} storageKey={`${id}-prd`} />
+                  </div>
                 ) : (
                   <EmptyPanel
                     label={L.projPrdEmpty}
@@ -1010,6 +1020,121 @@ function TaskList({ groups }: { groups: TaskGroup[] }) {
           </ul>
         </div>
       ))}
+    </div>
+  );
+}
+
+type PrdVersionRow = { id: string; note: string | null; createdAt: string };
+
+/**
+ * Riwayat versi PRD — daftar versi lama + tombol pulihkan.
+ * Ringkas & tertutup secara default agar tidak mengganggu pembacaan PRD.
+ */
+function PrdHistory({
+  workspaceId,
+  onRestored,
+}: {
+  workspaceId: string;
+  onRestored: (prd: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [versions, setVersions] = useState<PrdVersionRow[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/workspace/prd-versions?id=${workspaceId}`);
+      if (!res.ok) throw new Error();
+      setVersions(await res.json());
+    } catch {
+      toast.error("Gagal memuat riwayat PRD");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restore = async (versionId: string) => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/workspace/prd-versions/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ versionId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Gagal memulihkan");
+      toast.success("Versi PRD dipulihkan.");
+      onRestored(d.fullPrdMd as string);
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal memulihkan");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  return (
+    <div className="rounded-lg border border-border bg-surface/40">
+      <button
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          if (next && versions === null) void load();
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-muted transition-colors hover:text-foreground"
+      >
+        <History className="h-3.5 w-3.5" />
+        Riwayat versi PRD
+        {versions && versions.length > 0 && (
+          <Badge tone="neutral">{versions.length}</Badge>
+        )}
+        {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+      </button>
+
+      {open && (
+        <div className="border-t border-border p-2">
+          {versions === null ? (
+            <p className="px-2 py-2 text-[11px] text-muted">Memuat…</p>
+          ) : versions.length === 0 ? (
+            <p className="px-2 py-2 text-[11px] text-muted">
+              Belum ada versi lama. Versi tersimpan otomatis sebelum PRD diubah
+              (mis. dari Konsultasi AI).
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {versions.map((v) => (
+                <li
+                  key={v.id}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] hover:bg-surface-2/60"
+                >
+                  <span className="min-w-0 flex-1 truncate text-foreground">
+                    {v.note || "Versi lama"}
+                  </span>
+                  <span className="shrink-0 text-muted">{fmt(v.createdAt)}</span>
+                  <button
+                    onClick={() => void restore(v.id)}
+                    disabled={busy}
+                    className="shrink-0 rounded p-1 text-muted transition-colors hover:text-accent disabled:opacity-50"
+                    title="Pulihkan versi ini"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import {
   buildChatPrompt,
   buildChatSystemPrompt,
+  buildPrdFromChatPrompt,
   deriveThreadTitle,
   CHAT_HISTORY_LIMIT,
 } from "../lib/chat-prompt.ts";
@@ -64,29 +65,34 @@ describe("buildChatPrompt", () => {
 });
 
 describe("buildChatSystemPrompt", () => {
-  test("menyebut peran asisten", () => {
+  test("menyebut peran analis produk", () => {
     const p = buildChatSystemPrompt({
       projectContext: null,
       hasPrototype: false,
       languageDirective: LANG,
     });
     assert.ok(/Xynn/i.test(p));
-    assert.ok(/product design assistant/i.test(p));
+    assert.ok(/product analyst/i.test(p));
+    // Konsep baru: mempertajam workflow & menyimpulkan PRD.
+    assert.ok(/workflow/i.test(p));
+    assert.ok(/PRD/.test(p));
   });
 
-  test("beda arahan saat prototype sudah ada vs belum", () => {
+  test("beda arahan saat project sudah ada vs belum", () => {
     const belum = buildChatSystemPrompt({
       projectContext: null,
       hasPrototype: false,
+      hasProject: false,
       languageDirective: LANG,
     });
     const sudah = buildChatSystemPrompt({
       projectContext: null,
-      hasPrototype: true,
+      hasPrototype: false,
+      hasProject: true,
       languageDirective: LANG,
     });
-    assert.ok(/no prototype yet/i.test(belum));
-    assert.ok(/already has a prototype/i.test(sudah));
+    assert.ok(/No project exists yet/i.test(belum));
+    assert.ok(/already exists/i.test(sudah));
   });
 
   test("menyertakan konteks project bila ada, dan memotongnya", () => {
@@ -115,6 +121,23 @@ describe("buildChatSystemPrompt", () => {
       languageDirective: LANG,
     });
     assert.ok(/Do not output HTML unless/i.test(p));
+  });
+});
+
+describe("buildPrdFromChatPrompt", () => {
+  test("menyertakan transkrip & daftar 12 seksi", () => {
+    const p = buildPrdFromChatPrompt([
+      { role: "user", content: "Aplikasi kasir warung" },
+      { role: "assistant", content: "Fitur apa saja?" },
+    ]);
+    assert.match(p, /Aplikasi kasir warung/);
+    assert.match(p, /Executive Summary/);
+    assert.match(p, /Risks & Open Questions/);
+  });
+
+  test("riwayat kosong tetap menghasilkan prompt", () => {
+    const p = buildPrdFromChatPrompt([]);
+    assert.ok(typeof p === "string" && p.length > 0);
   });
 });
 
