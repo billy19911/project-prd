@@ -29,7 +29,7 @@ const MAP: Record<string, LoginErrorInfo> = {
   },
   AccessDenied: {
     message: "Akses ditolak.",
-    hint: "Akun ini tidak diizinkan masuk.",
+    hint: "Akun ini tidak diizinkan masuk — atau server sedang bermasalah. Bila berulang, coba lagi sebentar lagi.",
     serverSide: false,
   },
   Configuration: {

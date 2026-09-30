@@ -53,7 +53,58 @@ export default function ExecutePage() {
     };
   }, [id]);
 
-  const cliCommand = `xynn connect --workspace ${id}`;
+  const cliCommand = `xynn connect --api-key ${typeof window !== 'undefined' ? localStorage.getItem('xynnApiKey') || '' : ''} --workspace ${id}`;
+
+  const handleExportSync = async () => {
+    const key = typeof window !== 'undefined' ? localStorage.getItem('xynnApiKey') : null;
+    if (!key) {
+      toast.error('API key belum disimpan. Buat di Settings → Developer.');
+      return;
+    }
+    if (!workspace) {
+      toast.error('Workspace belum dimuat.');
+      return;
+    }
+    const server = process.env.NEXT_PUBLIC_XYNN_SERVER_URL || window.location.origin;
+    try {
+      const getRes = await fetch(`${server}/api/cli/sync?workspace=${id}`, {
+        headers: { 'x-api-key': key },
+      });
+      if (!getRes.ok) throw new Error('Sync GET gagal');
+      const data = await getRes.json();
+      // unduh artefak
+      downloadPrd(workspace.title, data.prd);
+      if (data.tasks) downloadTasks(workspace.title, data.tasks);
+      if (data.styleGuide) downloadStyle(workspace.title, data.styleGuide);
+      // laporkan kembali (minimal) — termasuk status per-task bila ada,
+      // supaya board web tetap sinkron dengan file yang baru diunduh.
+      const taskStatuses: Record<string, string> = {};
+      for (const g of workspace.tasksJson ?? []) {
+        for (const t of g.tasks ?? []) {
+          taskStatuses[t.id] = t.status ?? 'todo';
+        }
+      }
+      await fetch(`${server}/api/cli/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key },
+        body: JSON.stringify({
+          workspace: id,
+          files: { prd: !!data.prd, tasks: !!data.tasks, style: !!data.styleGuide },
+          taskProgress: {
+            done: Object.values(taskStatuses).filter((s) => s === 'done').length,
+            total: Object.keys(taskStatuses).length,
+            doing: Object.values(taskStatuses).filter((s) => s === 'doing').length,
+            failed: Object.values(taskStatuses).filter((s) => s === 'failed').length,
+          },
+          taskStatuses,
+        }),
+      });
+      toast.success('Export & Sync selesai');
+    } catch (e) {
+      console.error(e);
+      toast.error('Export & Sync gagal');
+    }
+  };
 
   const copyCommand = () => {
     navigator.clipboard.writeText(cliCommand);
@@ -136,6 +187,15 @@ export default function ExecutePage() {
               </div>
             ))}
           </div>
+
+          <Button className="w-full" onClick={handleExportSync}>
+            <Terminal className="h-4 w-4" />
+            Export & Sync (1 klik)
+          </Button>
+          <p className="text-xs text-muted">
+            API key diambil otomatis dari Settings → Developer. Bila belum ada, buat
+            dulu di sana.
+          </p>
         </CardBody>
       </Card>
 

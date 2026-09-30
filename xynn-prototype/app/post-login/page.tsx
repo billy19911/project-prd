@@ -21,12 +21,15 @@ export default async function PostLoginPage({
   const role = (session.user as { role?: string })?.role;
   const intended = params?.to;
 
-  if (role === "ADMIN") {
-    redirect("/admin");
-  }
-
+  // Hormati tujuan eksplisit lebih dulu — admin pun boleh membuka halaman
+  // spesifik (mis. dari `/project/xxx`). Bila tidak ada tujuan, baru
+  // default-nya menyesuaikan role.
   if (intended && intended.startsWith("/")) {
     redirect(intended);
+  }
+
+  if (role === "ADMIN") {
+    redirect("/admin");
   }
 
   redirect("/dashboard");

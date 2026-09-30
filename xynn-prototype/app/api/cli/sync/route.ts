@@ -1,45 +1,27 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeTechStack } from "@/lib/utils";
-import { canUseCli } from "@/lib/access";
 import { getWorkspaceAccess } from "@/lib/workspace-access";
-import crypto from "crypto";
+import { authenticateCli } from "@/lib/cli-auth";
+import { isTaskStatus, normalizeStatus } from "@/lib/task-status";
+import type { TaskGroup } from "@/lib/task-status";
 
+/** GET /api/cli/sync?workspace=<id> — ambil semua artifact workspace. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const apiKey = req.headers.get("x-api-key") || url.searchParams.get("apiKey");
   const workspaceId = url.searchParams.get("workspace");
 
-  if (!apiKey?.startsWith("xynn_live_")) {
-    return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
-  }
   if (!workspaceId) {
     return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
   }
 
-  const hash = crypto.createHash("sha256").update(apiKey).digest("hex");
-
-  const apiKeyRecord = await prisma.apiKey.findUnique({
-    where: { keyHash: hash },
-    include: { user: { include: { subscription: true } } },
-  });
-
-  if (!apiKeyRecord) {
-    return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
-  }
-
-  const sub = apiKeyRecord.user.subscription;
-
-  // Paywall guard: CLI Sync hanya untuk Starter & Pro (PRD §3.4).
-  if (!canUseCli(sub)) {
-    return NextResponse.json(
-      { error: "Payment required. Upgrade to STARTER/PRO to use CLI Sync." },
-      { status: 402 }
-    );
+  const auth = await authenticateCli(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   // Workspace harus milik pemilik API key ATAU organisasi tempat ia anggota.
-  const access = await getWorkspaceAccess(workspaceId, apiKeyRecord.userId);
+  const access = await getWorkspaceAccess(workspaceId, auth.userId);
   if (!access.canView) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
   }
@@ -62,7 +44,8 @@ export async function GET(req: Request) {
     `You are an expert developer working on "${workspace.title}".`,
     workspace.description || "",
     ``,
-    "Always refer to PRD.md for full specifications.",
+    "Refer to PRD.md for full specifications, tasks.md for the task breakdown,",
+    "and STYLEGUIDE.md for the design system.",
   ].join("\n");
 
   return NextResponse.json({
@@ -70,5 +53,89 @@ export async function GET(req: Request) {
     cursorRules,
     title: workspace.title,
     techStack: techStackArray,
+    tasks: workspace.tasksJson || null,
+    styleGuide: workspace.styleGuideMd || null,
+    prototypeHtml: workspace.prototypeHtml || null,
   });
+}
+
+/**
+ * POST /api/cli/sync — terima laporan dari CLI supaya web menandai bahwa
+ * proyek sudah tersambung dan step mana yang sudah ada di lokal.
+ *
+ * Body: { workspace, files: {...}, taskProgress: { done, total } }
+ */
+export async function POST(req: Request) {
+  const auth = await authenticateCli(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const workspaceId = body?.workspace;
+  if (!workspaceId) {
+    return NextResponse.json({ error: "Missing workspace id" }, { status: 400 });
+  }
+
+  const access = await getWorkspaceAccess(workspaceId, auth.userId);
+  if (!access.canView) {
+    return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+  }
+
+  const files =
+    body?.files && typeof body.files === "object"
+      ? {
+          prd: !!body.files.prd,
+          tasks: !!body.files.tasks,
+          style: !!body.files.style,
+          prototype: !!body.files.prototype,
+          cursorrules: !!body.files.cursorrules,
+        }
+      : {};
+
+  const done = Number(body?.taskProgress?.done) || 0;
+  const total = Number(body?.taskProgress?.total) || 0;
+  const failed = Number(body?.taskProgress?.failed) || 0;
+  const doing = Number(body?.taskProgress?.doing) || 0;
+
+  const cliSyncJson = {
+    connected: true,
+    lastSyncAt: new Date().toISOString(),
+    files,
+    taskProgress: { done, total, doing, failed },
+  };
+
+  // Status per-task dari CLI: sinkronkan centang `[/]`/`[x]`/`[!]` di
+  // tasks.md lokal kembali ke board web. Bentuk: { [taskId]: TaskStatus }.
+  // Diabaikan bila tidak dikirim / bukan objek.
+  let tasksJson: unknown;
+  if (body?.taskStatuses && typeof body.taskStatuses === "object") {
+    const current = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { tasksJson: true },
+    });
+    const groups = (current?.tasksJson ?? null) as unknown as TaskGroup[] | null;
+    if (Array.isArray(groups)) {
+      let changed = false;
+      const next = groups.map((g) => ({
+        ...g,
+        tasks: (g.tasks ?? []).map((t) => {
+          const incoming = body.taskStatuses[t.id];
+          if (isTaskStatus(incoming) && normalizeStatus(t.status) !== incoming) {
+            changed = true;
+            return { ...t, status: incoming };
+          }
+          return t;
+        }),
+      }));
+      if (changed) tasksJson = next;
+    }
+  }
+
+  await prisma.workspace.update({
+    where: { id: workspaceId },
+    data: tasksJson ? { cliSyncJson, tasksJson } : { cliSyncJson },
+  });
+
+  return NextResponse.json({ ok: true, cliSync: cliSyncJson });
 }

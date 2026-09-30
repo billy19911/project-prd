@@ -173,6 +173,11 @@ model Workspace {
   tasksJson           Json?        // Task breakdown dari PRD
   styleGuideMd        String?      // Style guide (design system)
 
+  /// Status sinkronisasi CLI terakhir (dikirim oleh `xynn connect`).
+  /// { connected, lastSyncAt, files, taskProgress } — dipakai UI agar
+  /// menampilkan "tersambung" dan step mana yang sudah ada di lokal.
+  cliSyncJson         Json?
+
   // Prototype Design (PRO) — HTML mandiri + struktur screen + token tema.
   prototypeHtml       String?      // HTML/CSS/JS self-contained, dirender di iframe
   prototypeJson       Json?        // { screens: [{id,label,order}], generatedAt }

@@ -23,14 +23,14 @@ type Workspace = {
 };
 
 export default function DashboardPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const upgrade = useUpgrade();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [expiry, setExpiry] = useState<{ daysLeft: number; validUntil: string } | null>(null);
 
   useEffect(() => {
-    if (!session) return;
+    if (status !== "authenticated") return;
     let active = true;
     fetch("/api/workspace")
       .then((res) => (res.ok ? res.json() : Promise.reject()))
@@ -52,7 +52,13 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [session]);
+  }, [status]);
+
+  // Layout `(main)` sudah mengurus redirect saat belum login. Di sini cukup
+  // tampilkan skeleton selama sesi belum siap agar tidak berkedip "kosong".
+  if (status === "loading") {
+    return <CardSkeletonGrid count={3} />;
+  }
 
   const plan = (session?.user as { plan?: string })?.plan || "FREE";
 

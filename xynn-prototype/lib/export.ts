@@ -9,6 +9,8 @@ export type TaskItem = {
   description: string;
   phase: string;
   priority: "high" | "medium" | "low";
+  /** Status lifecycle board. Task lama tanpa field ini dianggap "todo". */
+  status?: "todo" | "doing" | "done" | "failed";
 };
 export type TaskGroup = { phase: string; tasks: TaskItem[] };
 
@@ -38,6 +40,18 @@ export function downloadPrd(title: string, prd: string | null) {
   download(`${slugify(title)}-PRD.md`, prd || `# ${title}\n\n_PRD belum di-generate._\n`);
 }
 
+/** Peta status → penanda checkbox markdown. */
+const STATUS_MARK: Record<string, string> = {
+  todo: " ",
+  doing: "/",
+  done: "x",
+  failed: "!",
+};
+
+/**
+ * Task groups → markdown, MEMPERTAHANKAN status board:
+ *   [ ] todo · [/] doing · [x] done · [!] failed
+ */
 export function tasksToMarkdown(title: string, groups: TaskGroup[] | null): string {
   const lines: string[] = [`# ${title} — Task Breakdown`, ""];
   if (!groups || groups.length === 0) {
@@ -45,13 +59,14 @@ export function tasksToMarkdown(title: string, groups: TaskGroup[] | null): stri
     return lines.join("\n");
   }
   lines.push(
-    "> Checklist tugas implementasi. Tandai `[x]` saat selesai.",
+    "> Checklist tugas implementasi. Status board: `[ ]` todo · `[/]` ongoing · `[x]` selesai · `[!]` gagal.",
     ""
   );
   for (const g of groups) {
     lines.push(`## ${g.phase}`, "");
     for (const t of g.tasks) {
-      lines.push(`- [ ] **${t.title}** _(${t.priority})_`);
+      const mark = STATUS_MARK[t.status ?? "todo"] ?? " ";
+      lines.push(`- [${mark}] **${t.title}** _(${t.priority})_`);
       if (t.description) lines.push(`  ${t.description}`);
     }
     lines.push("");

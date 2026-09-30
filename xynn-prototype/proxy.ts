@@ -23,6 +23,7 @@ import { getToken } from "next-auth/jwt";
 // penolakan. `/post-login` sengaja tidak termasuk: ia menangani login-nya
 // sendiri dan mengarahkan ke tujuan akhir.
 const PROTECTED_PREFIXES = [
+  "/admin",
   "/dashboard",
   "/projects",
   "/new-project",
@@ -64,6 +65,7 @@ export async function proxy(req: NextRequest) {
 export const config = {
   // Cocokkan hanya area terproteksi (dan lewati aset statis/API).
   matcher: [
+    "/admin/:path*",
     "/dashboard/:path*",
     "/projects/:path*",
     "/new-project/:path*",

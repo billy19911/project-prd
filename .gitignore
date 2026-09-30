@@ -32,3 +32,8 @@ tmp-*.sql
 xynn-prototype/.agents/
 xynn-prototype/.claude/
 xynn-prototype/.windsurf/
+
+# Artefak lokal - jangan commit
+project-prd-git.zip
+xynn-prototype/.cursorrules
+.cursorrules

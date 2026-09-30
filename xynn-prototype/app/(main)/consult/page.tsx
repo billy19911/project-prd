@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Sparkles,
   ArrowLeft,
@@ -93,7 +94,10 @@ function ConsultWorkspace() {
   const [applyingAction, setApplyingAction] = useState<string | null>(null);
   const [manualKind, setManualKind] = useState<"fix-prd" | "regen-screen">("fix-prd");
   const [manualTarget, setManualTarget] = useState<string>("");
+  // Fase 5: buat project dari percakapan.
+  const [creatingProject, setCreatingProject] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // Project efektif yang sedang dibahas (thread aktif bila ada, atau pilihan dropdown).
   const activeWorkspaceId =
@@ -223,6 +227,34 @@ function ConsultWorkspace() {
       if (activeId === id) setActiveId(null);
     } catch {
       toast.error("Gagal menghapus konsultasi");
+    }
+  };
+
+  /**
+   * Fase 5 — buat project dari percakapan aktif. Server menyusun PRD dari
+   * riwayat, membuat workspace, lalu UI loncat ke wizard (resume → mindmap).
+   */
+  const toProject = async () => {
+    if (!activeId || creatingProject) return;
+    setCreatingProject(true);
+    try {
+      const res = await fetch(`/api/consult/threads/${activeId}/to-project`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.status === 402) {
+        toast.error(d.error || "Upgrade untuk membuat project baru.");
+        return;
+      }
+      if (!res.ok) throw new Error(d.error || "Gagal membuat project");
+      toast.success("Project dibuat — lanjut ke wizard.");
+      router.push(`/new-project?id=${d.id}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal membuat project");
+    } finally {
+      setCreatingProject(false);
     }
   };
 
@@ -452,6 +484,26 @@ function ConsultWorkspace() {
               <span className="truncate text-[10px] text-muted">
                 {activeProject?.title ?? "tanpa project"}
               </span>
+            )}
+            {/* Fase 5: buat project dari percakapan (tanpa project terikat). */}
+            {activeId && !activeWorkspaceId && (
+              <button
+                onClick={() => void toProject()}
+                disabled={creatingProject || messages.length === 0}
+                title={
+                  messages.length === 0
+                    ? "Ajukan dulu kebutuhan Anda ke AI"
+                    : "Susun PRD dari percakapan ini lalu buka wizard"
+                }
+                className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {creatingProject ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <FileText className="h-3 w-3" />
+                )}
+                Buat Project
+              </button>
             )}
           </div>
 

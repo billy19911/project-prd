@@ -7,3 +7,13 @@ build/
 npm-debug.log*
 .env
 .env*.local
+*.tsbuildinfo
+
+# Skrip uji manual (berisi kredensial lokal, bukan bagian aplikasi)
+_*.mjs
+
+# Probe sementara
+tmp-*.mjs
+tmp-*.html
+tmp-*.sql
+tmp/

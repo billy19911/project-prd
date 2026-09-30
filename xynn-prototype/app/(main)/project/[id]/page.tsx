@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -6,7 +6,6 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Copy,
-  Download,
   FileDown,
   Globe,
   Loader2,
@@ -17,7 +16,6 @@ import {
   ListChecks,
   Palette,
   MonitorSmartphone,
-  Check,
   CheckCircle2,
   Lock,
   Trash2,
@@ -44,12 +42,10 @@ import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { useUpgrade } from "@/components/upgrade-provider";
 import { useSubscription } from "@/lib/use-subscription";
-import {
-  downloadPrd,
-  downloadTasks,
-  downloadStyle,
-  downloadAllBundle,
-} from "@/lib/export";
+import { downloadPrd, downloadTasks, downloadStyle } from "@/lib/export";
+import { TaskBoard } from "@/components/task-board";
+import { TaskAskDrawer } from "@/components/task-ask-drawer";
+import type { TaskStatus } from "@/lib/task-status";
 
 type TaskItem = {
   id: string;
@@ -57,6 +53,7 @@ type TaskItem = {
   description: string;
   phase: string;
   priority: "high" | "medium" | "low";
+  status?: TaskStatus;
 };
 type TaskGroup = { phase: string; tasks: TaskItem[] };
 
@@ -88,6 +85,8 @@ type Workspace = {
   shareSlug: string | null;
   category: string | null;
   locale: string;
+  /** Hak akses dari GET /api/workspace â€” viewer = read-only board. */
+  access?: { canEdit: boolean; canManage: boolean };
 };
 
 type Tab = "prd" | "tasks" | "style" | "mindmap" | "prototype";
@@ -113,15 +112,17 @@ export default function ProjectDetailPage() {
 
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Task yang sedang ditanyakan ke AI (drawer kanan). null = tertutup.
+  const [askTask, setAskTask] = useState<{ task: TaskItem; status: TaskStatus } | null>(null);
 
   const L = t(workspace?.locale);
   const upgrade = useUpgrade();
   const { isPaid, canUsePrototype, prototypeQuotaLeft, canSaveThemes } = useSubscription();
   const [theme, setTheme] = useState<ThemeTokens>(DEFAULT_THEME);
 
-  // Token "awal" dari Style Guide — target Reset & fallback tema. Dihitung
+  // Token "awal" dari Style Guide â€” target Reset & fallback tema. Dihitung
   // ulang saat style guide berubah, agar Reset selalu selaras dengan style
-  // guide terkini (mindmap→PRD→task→style→prototype tetap terhubung).
+  // guide terkini (mindmapâ†’PRDâ†’taskâ†’styleâ†’prototype tetap terhubung).
   const styleGuideTheme = useMemo<ThemeTokens>(
     () => themeFromStyleGuide(workspace?.styleGuideMd ?? null),
     [workspace?.styleGuideMd]
@@ -375,7 +376,7 @@ export default function ProjectDetailPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {/* Sidebar info — disembunyikan saat tab Prototype (mode fokus penuh)
+        {/* Sidebar info â€” disembunyikan saat tab Prototype (mode fokus penuh)
             agar kanvas prototype memakai lebar penuh di desktop. */}
         {tab !== "prototype" && (
           <div className="space-y-4 lg:col-span-1">
@@ -553,7 +554,7 @@ export default function ProjectDetailPage() {
               {!isPaid && (
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-2/40 px-3 py-2 text-[11px] text-muted">
                   <Lock className="h-3 w-3" />
-                  Export terkunci — upgrade untuk mengunduh.
+                  Export terkunci â€” upgrade untuk mengunduh.
                 </div>
               )}
               <Button
@@ -603,23 +604,48 @@ export default function ProjectDetailPage() {
                 </Button>
               </div>
 
-              <Button
-                className="w-full"
-                size="sm"
-                disabled={!isPaid}
-                onClick={() => {
-                  downloadAllBundle(
-                    workspace.title,
-                    workspace.fullPrdMd,
-                    workspace.tasksJson,
-                    workspace.styleGuideMd
-                  );
-                  toast.success("3 file Markdown diunduh");
-                }}
-              >
-                <Download className="h-3.5 w-3.5" />
-                Unduh Semua (.md)
-              </Button>
+                <Button
+                  className="w-full mt-2"
+                  size="sm"
+                  onClick={async () => {
+                    // Ambil API key dari localStorage (disimpan lewat Developer Settings)
+                    const key = typeof window !== 'undefined' ? localStorage.getItem('xynnApiKey') : null;
+                    if (!key) {
+                      toast.error('API key belum disimpan. Buat di Settings â†’ Developer.');
+                      return;
+                    }
+                    const server = process.env.NEXT_PUBLIC_XYNN_SERVER_URL || window.location.origin;
+                    const wsId = workspace.id;
+                    try {
+                      const getRes = await fetch(`${server}/api/cli/sync?workspace=${wsId}`, {
+                        headers: { 'x-api-key': key },
+                      });
+                      if (!getRes.ok) throw new Error('Sync GET gagal');
+                      const data = await getRes.json();
+                      // download files
+                      downloadPrd(workspace.title, data.prd);
+                      if (data.tasks) downloadTasks(workspace.title, data.tasks);
+                      if (data.styleGuide) downloadStyle(workspace.title, data.styleGuide);
+                      // report back (minimal)
+                      await fetch(`${server}/api/cli/sync`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-api-key': key },
+                        body: JSON.stringify({
+                          workspace: wsId,
+                          files: { prd: !!data.prd, tasks: !!data.tasks, style: !!data.styleGuide },
+                          taskProgress: { done: 0, total: 0 },
+                        }),
+                      });
+                      toast.success('Export & Sync selesai');
+                    } catch (e) {
+                      console.error(e);
+                      toast.error('Export & Sync gagal');
+                    }
+                  }}
+                >
+                  <Terminal className="h-3.5 w-3.5" />
+                  Export & Sync
+                </Button>
             </CardBody>
           </Card>
 
@@ -646,7 +672,7 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* Main content tabs — full width (4 kolom) saat mode fokus prototype */}
+        {/* Main content tabs â€” full width (4 kolom) saat mode fokus prototype */}
         <div className={cn("min-w-0", tab === "prototype" ? "lg:col-span-4" : "lg:col-span-3")}>
           <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface/60 p-1">
             {tabs.map((tabItem) => {
@@ -751,7 +777,21 @@ export default function ProjectDetailPage() {
 
               {tab === "tasks" &&
                 (workspace.tasksJson?.length ? (
-                  <TaskList groups={workspace.tasksJson} />
+                  <TaskBoard
+                    workspaceId={id as string}
+                    groups={workspace.tasksJson}
+                    readOnly={workspace.access ? !workspace.access.canEdit : false}
+                    context={{
+                      title: workspace.title,
+                      description: workspace.description,
+                      techStack: workspace.techStack,
+                      locale: workspace.locale,
+                    }}
+                    onAskAi={(task, status) => setAskTask({ task, status })}
+                    onChange={(next) =>
+                      setWorkspace((prev) => (prev ? { ...prev, tasksJson: next } : null))
+                    }
+                  />
                 ) : (
                   <EmptyPanel
                     label={L.projTasksEmpty}
@@ -945,6 +985,22 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Drawer Tanya AI per task (dari kanban) */}
+      {askTask && (
+        <TaskAskDrawer
+          workspaceId={id as string}
+          task={askTask.task}
+          status={askTask.status}
+          context={{
+            title: workspace.title,
+            description: workspace.description,
+            techStack: workspace.techStack,
+            locale: workspace.locale,
+          }}
+          onClose={() => setAskTask(null)}
+        />
+      )}
     </div>
   );
 }
@@ -974,60 +1030,10 @@ function EmptyPanel({
   );
 }
 
-function TaskList({ groups }: { groups: TaskGroup[] }) {
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const prioTone: Record<TaskItem["priority"], "danger" | "warning" | "neutral"> = {
-    high: "danger",
-    medium: "warning",
-    low: "neutral",
-  };
-
-  return (
-    <div className="space-y-6">
-      {groups.map((g) => (
-        <div key={g.phase}>
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
-            <ListChecks className="h-4 w-4 text-accent" />
-            {g.phase}
-          </h3>
-          <ul className="space-y-1.5">
-            {g.tasks.map((t) => (
-              <li key={t.id}>
-                <button
-                  onClick={() => setChecked((p) => ({ ...p, [t.id]: !p[t.id] }))}
-                  className="flex w-full items-start gap-3 rounded-lg border border-border bg-surface-2/30 p-3 text-left transition-colors hover:bg-surface-2/60"
-                >
-                  <span
-                    className={cn(
-                      "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                      checked[t.id] ? "border-accent bg-accent text-white" : "border-border-strong"
-                    )}
-                  >
-                    {checked[t.id] && <Check className="h-3 w-3" />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className={cn("block text-sm", checked[t.id] ? "text-muted line-through" : "text-foreground")}>
-                      {t.title}
-                    </span>
-                    {t.description && (
-                      <span className="mt-0.5 block text-xs text-muted">{t.description}</span>
-                    )}
-                  </span>
-                  <Badge tone={prioTone[t.priority]}>{t.priority}</Badge>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 type PrdVersionRow = { id: string; note: string | null; createdAt: string };
 
 /**
- * Riwayat versi PRD — daftar versi lama + tombol pulihkan.
+ * Riwayat versi PRD â€” daftar versi lama + tombol pulihkan.
  * Ringkas & tertutup secara default agar tidak mengganggu pembacaan PRD.
  */
 function PrdHistory({
@@ -1104,7 +1110,7 @@ function PrdHistory({
       {open && (
         <div className="border-t border-border p-2">
           {versions === null ? (
-            <p className="px-2 py-2 text-[11px] text-muted">Memuat…</p>
+            <p className="px-2 py-2 text-[11px] text-muted">Memuatâ€¦</p>
           ) : versions.length === 0 ? (
             <p className="px-2 py-2 text-[11px] text-muted">
               Belum ada versi lama. Versi tersimpan otomatis sebelum PRD diubah

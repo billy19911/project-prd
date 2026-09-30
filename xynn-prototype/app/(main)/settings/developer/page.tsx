@@ -15,13 +15,65 @@ type ApiKeyRow = {
   lastUsedAt: string | null;
 };
 
+type WorkspaceInfo = {
+  id: string;
+  title: string;
+  hasPrd: boolean;
+  hasTasks: boolean;
+  hasStyle: boolean;
+  cliSync?: { lastSyncAt: string };
+};
+
 export default function DeveloperSettingsPage() {
   const [keyName, setKeyName] = useState("");
+  // API key disimpan di localStorage agar tombol "Export & Sync" di project
+  // bisa jalan sekali klik tanpa memasukkan key manual lagi.
   const [apiKey, setApiKey] = useState("");
   const [showRawKey, setShowRawKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [copied, setCopied] = useState(false);
+
+  const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
+
+  const fetchWorkspaces = async (key: string) => {
+    try {
+      setLoadingWorkspaces(true);
+      const res = await fetch('/api/cli/workspaces', {
+        headers: { 'x-api-key': key },
+      });
+      if (!res.ok) throw new Error();
+      const data: WorkspaceInfo[] = await res.json();
+      setWorkspaces(data);
+    } catch {
+      toast.error('Gagal mengambil daftar workspace');
+    } finally {
+      setLoadingWorkspaces(false);
+    }
+  };
+
+  // Muat key tersimpan sekali saat mount (dari localStorage), lalu ambil workspace.
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('xynnApiKey') : null;
+    if (!stored) return;
+    let active = true;
+    (async () => {
+      setApiKey(stored);
+      await fetchWorkspaces(stored);
+      if (!active) return;
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Simpan API key ke localStorage setiap kali berubah.
+  useEffect(() => {
+    if (apiKey && typeof window !== 'undefined') {
+      localStorage.setItem('xynnApiKey', apiKey);
+    }
+  }, [apiKey]);
 
   const fetchKeys = async () => {
     try {
@@ -157,6 +209,67 @@ export default function DeveloperSettingsPage() {
         </Card>
       )}
 
+      {/* Workspace CLI — auto-deteksi workspace & perintah siap tempel */}
+      {apiKey && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Terminal className="h-4 w-4 text-muted" />
+              Sync ke Workspace
+            </CardTitle>
+            <span className="text-xs text-muted">
+              {loadingWorkspaces ? "Memuat..." : `${workspaces.length} workspace`}
+            </span>
+          </CardHeader>
+          <CardBody className="space-y-2">
+            {!loadingWorkspaces && workspaces.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted">
+                Belum ada workspace. Buat project dulu.
+              </p>
+            ) : (
+              workspaces.map((ws) => {
+                const cmd = `xynn connect --api-key ${apiKey} --workspace ${ws.id} --server ${typeof window !== "undefined" ? window.location.origin : ""}`;
+                const steps = [
+                  ws.hasPrd ? "PRD" : null,
+                  ws.hasTasks ? "Task" : null,
+                  ws.hasStyle ? "Style" : null,
+                ].filter(Boolean);
+                return (
+                  <div
+                    key={ws.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-2/40 p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {ws.title}
+                      </p>
+                      <p className="truncate text-xs text-muted">
+                        {steps.length ? `Siap: ${steps.join(", ")}` : "Belum ada artifact"}
+                        {ws.cliSync?.lastSyncAt
+                          ? ` · Tersambung ${new Date(ws.cliSync.lastSyncAt).toLocaleDateString("id-ID")}`
+                          : ""}
+                      </p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(cmd);
+                        toast.success("Perintah CLI disalin");
+                      }}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Copy command</span>
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </CardBody>
+        </Card>
+      )}
+
       {/* Key list */}
       <Card>
         <CardHeader>
@@ -210,19 +323,25 @@ export default function DeveloperSettingsPage() {
         </CardHeader>
         <CardBody className="space-y-3">
           <p className="text-sm text-muted">
-            Instal CLI Xynn lalu sinkronkan PRD ke folder proyek lokal.
+            Jalankan perintah di folder proyek lokal untuk menyinkronkan PRD, Task
+            Breakdown, Style Guide, dan <code className="text-foreground">.cursorrules</code>.
+            Satu perintah juga melaporkan progres kembali ke web.
           </p>
           <div className="space-y-2 font-mono text-xs">
             <div className="overflow-x-auto rounded-lg border border-border-strong bg-background/80 p-3 text-accent">
-              npm install -g xynn-cli
+              xynn connect --api-key &lt;KEY&gt; --workspace &lt;ID&gt;
             </div>
             <div className="overflow-x-auto rounded-lg border border-border-strong bg-background/80 p-3 text-accent">
-              xynn connect --api-key &lt;KEY&gt; --workspace &lt;ID&gt;
+              xynn workspaces --api-key &lt;KEY&gt;
             </div>
           </div>
           <p className="text-xs text-muted">
-            Menghasilkan file <code className="text-foreground">PRD.md</code> dan{" "}
-            <code className="text-foreground">.cursorrules</code>. Butuh Node.js &gt;= 18.
+            Menghasilkan file <code className="text-foreground">PRD.md</code>,{" "}
+            <code className="text-foreground">tasks.md</code>,{" "}
+            <code className="text-foreground">STYLEGUIDE.md</code>, dan{" "}
+            <code className="text-foreground">.cursorrules</code>. Bila akun hanya punya
+            satu workspace, <code className="text-foreground">--workspace</code> boleh
+            dikosongkan (terdeteksi otomatis). Butuh Node.js &gt;= 18.
           </p>
         </CardBody>
       </Card>
